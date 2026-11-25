@@ -18,8 +18,6 @@ static uint16_t fakeInputs = 0xffff, fakeOutputs = 0;
 static uint16_t fakeAdc[18] = {};
 static uint8_t fakeDigital[18] = {};
 static uint8_t fakeShifted = 0;
-static bool fakeAudioPresent = false;
-static uint8_t fakeTrack = 0;
 inline uint32_t millis() { return fakeNow; }
 inline uint32_t micros() { return fakeNow * 1000; }
 inline void delay(uint32_t ms) { fakeNow += ms; }
@@ -34,7 +32,6 @@ struct Printer {
   template <typename T> void print(T) {}
   template <typename T> void println(T) {}
 };
-static Printer Serial;
 struct WireStub { void begin() {} };
 static WireStub Wire;
 struct Adafruit_AW9523 {
@@ -61,12 +58,4 @@ struct Adafruit_LiquidCrystal : Printer {
   void setBacklight(int) {}
   void clear() {}
   void setCursor(int, int) {}
-};
-struct DFRobotDFPlayerMini {
-  bool begin(Printer &, bool, bool) { return fakeAudioPresent; }
-  void volume(int) {}
-  void stop() { fakeTrack = 0; delay(20); }
-  void playMp3Folder(uint8_t track) { fakeTrack = track; delay(20); }
-  bool available() { return false; }
-  void read() {}
 };

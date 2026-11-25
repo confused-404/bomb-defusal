@@ -2,7 +2,6 @@
 #include <Adafruit_AW9523.h>
 #include <LedControl.h>
 #include <Adafruit_LiquidCrystal.h>
-#include <DFRobotDFPlayerMini.h>
 #include "PuzzleRules.h"
 
 // Wiring and the matching expert manual are in ../planning/WIRING.md.
@@ -17,7 +16,7 @@ const uint8_t MATRIX_DIN = 11, MATRIX_CLK = 13, MATRIX_CS = 10;  // MAX7219 modu
 const uint8_t MATRIX_COUNT = 1;     // Set 4 for a 4-in-1 module; the puzzle uses the first matrix.
 const uint8_t MATRIX_ROTATION = 0;  // 0-3 quarter turns clockwise. See WIRING.md orientation check.
 const bool MATRIX_MIRROR = false;
-// DFPlayer RX is on D1 (hardware Serial TX).
+// D0, D1, D9, and D12 are unused.
 
 // ---- AW9523 pins ----
 // Inputs 0-3: red, yellow, green, blue symbol keys. 7-9: Serial Code toggles 1-3.
@@ -27,18 +26,16 @@ const uint8_t RGB_FIRST = 13;     // 13 red, 14 green, 15 blue. LOW lights.
 
 const uint16_t ROUND_SECONDS[] = {180, 300, 480};
 const uint32_t DEBOUNCE_MS = 30, TAP_GAP_MS = 1500, SERIAL_HOLD_MS = 750;
-const uint8_t AUDIO_VOLUME = 15;  // 0-30. Lower it if the Uno resets during sounds.
 
 Adafruit_AW9523 io;
 LedControl matrix(MATRIX_DIN, MATRIX_CLK, MATRIX_CS, MATRIX_COUNT);
 Adafruit_LiquidCrystal lcd(0);   // Adafruit #292 backpack at I2C address 0x20.
-DFRobotDFPlayerMini audio;
 
 enum GameState { SETUP, PLAYING, WON, LOST };
 GameState state = SETUP;
 uint8_t difficulty = 0, timerChoice = 1;
-bool audioReady = false, solved[3] = {};
-uint32_t remainingMs = 0, lastTick = 0, lastScan = 0, lastWarning = 0;
+bool solved[3] = {};
+uint32_t remainingMs = 0, lastTick = 0, lastScan = 0;
 uint16_t lastShownSeconds = 65535;
 uint8_t strikes = 0;
 
@@ -124,7 +121,7 @@ const uint8_t DECIMAL_POINT = 0x80;
 volatile uint8_t displaySegments[4] = {};
 
 // Lights one digit at a time, 500 times a second. Running from an interrupt keeps
-// the display steady while the main loop is busy with I2C or audio.
+// the display steady while the main loop is busy with I2C.
 ISR(TIMER2_COMPA_vect) {
   static uint8_t digit = 0;
   digitalWrite(DIGIT_PINS[digit], COMMON_ANODE_DISPLAY ? LOW : HIGH);  // Off.
@@ -156,10 +153,6 @@ void showTime(uint16_t seconds) {
 }
 
 // ---- Small helpers ----
-void sound(uint8_t track) {
-  if (audioReady) audio.playMp3Folder(track);
-}
-
 void rgbOff() {
   for (uint8_t i = 0; i < 3; ++i) io.digitalWrite(RGB_FIRST + i, HIGH);
 }
@@ -226,7 +219,6 @@ void resetGame() {
   symbolPosition = 0;
   serialMatching = false;
   strikes = 0;
-  if (audioReady) audio.stop();
   showSetup();  // Keeps the chosen difficulty and timer.
 }
 
@@ -241,7 +233,6 @@ void finishGame(bool win) {
   else lcd.print(F("BOOM! Time's up"));
   lcd.setCursor(0, 1);
   lcd.print(F("RESET to retry"));
-  sound(win ? 5 : 6);
 }
 
 // Called before accepting actions, so an action at zero cannot win.
@@ -269,7 +260,6 @@ void penalty() {
   lcd.print(F("X:"));
   lcd.print(strikes);
   if (!remainingMs) finishGame(false);
-  else sound(3);
 }
 
 void completeModule(uint8_t module) {
@@ -279,7 +269,6 @@ void completeModule(uint8_t module) {
   io.digitalWrite(STATUS_FIRST + module, HIGH);
   if (module == 1) rgbOff();
   if (solved[0] && solved[1] && solved[2]) finishGame(true);
-  else sound(4);
 }
 
 void startGame() {
@@ -322,11 +311,10 @@ void startGame() {
   rgbOff();
   rgbOn(flashColors[0]);
   uint32_t now = millis();
-  flashChanged = lastTick = lastWarning = now;
+  flashChanged = lastTick = now;
   remainingMs = (uint32_t)ROUND_SECONDS[timerChoice] * 1000;
   state = PLAYING;
   showTime(ROUND_SECONDS[timerChoice]);
-  sound(1);
 }
 
 // ---- Inputs ----
@@ -412,20 +400,12 @@ void setup() {
   }
   uint16_t bits = io.inputGPIO();
   for (uint8_t i = 0; i < INPUT_COUNT; ++i) rawInput[i] = stableInput[i] = !(bits & ((uint16_t)1 << i));
-
-
-  // The DFPlayer only listens (D1 -> its RX), so commands are fire-and-forget.
-  // The USB Serial Monitor shares this line: leave it closed while playing.
-  Serial.begin(9600);
-  audioReady = audio.begin(Serial, false, true);
-  if (audioReady) audio.volume(AUDIO_VOLUME);
-
   startDisplayRefresh();
   resetGame();
 }
 
 void loop() {
-  // Poll every 5ms. DFPlayer sends take about 20ms; the clock accounts for this.
+  // Poll inputs every 5ms.
   uint32_t now = millis();
   updateClock(now);
   if (now - lastScan < 5) return;
@@ -453,7 +433,6 @@ void loop() {
       if (!pressed[i]) continue;
       if (i == symbolAnswer[symbolPosition]) {
         if (++symbolPosition == symbolLength) { completeModule(0); break; }
-        sound(2);
       } else {
         symbolPosition = 0;
         penalty();
@@ -482,8 +461,4 @@ void loop() {
 
   bool lowTime = remainingMs <= 30000;
   digitalWrite(WARNING_PIN, lowTime && ((now / 250) % 2));
-  if (lowTime && now - lastWarning >= 5000) {
-    lastWarning = now;
-    sound(7);
-  }
 }

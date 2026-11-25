@@ -13,9 +13,7 @@ the matching `.ino` from that folder; do not combine the sketches.
 2. For bench tests, turn the battery module **off** and use **USB only**. Connect
    Uno 5V and GND to the breadboard rails so the parts under test get power.
    Never have USB and the battery module on at the same time.
-3. Disconnect the DFPlayer's RX wire from Uno D1 for tests that use the Serial
-   Monitor. D1 is also the Uno's USB transmit line, so monitor text would go to
-   the DFPlayer. Use **115200 baud** where a test calls for the Serial Monitor.
+3. Use **115200 baud** where a test calls for the Serial Monitor.
 4. Follow the full pin and resistor details in the [wiring guide](../planning/WIRING.md). Keep each
    test's power off while changing wires.
 
@@ -29,7 +27,6 @@ the matching `.ino` from that folder; do not combine the sketches.
 | `04_lcd_backpack/04_lcd_backpack.ino` | LCD backpack power and I²C (DAT/SDA A4, CLK/SCL A5). | Both text rows appear; the backlight briefly turns off and back on. |
 | `05_pots/05_pots.ino` | Pot wipers to A0, A1, A2; each pot's outer pins to 5V and GND. | Serial Monitor shows each raw reading and a digit from 0–9 as you turn the pots. |
 | `06_countdown_display/06_countdown_display.ino` | 4-digit display and 74HC595 wired as described under Module 4 in the wiring guide. | The display cycles through `12.34`, `8888`, `0000`, and `1111`; the dot should appear on `12.34`. |
-| `07_dfplayer/07_dfplayer.ino` | DFPlayer VCC/GND; Uno D1 (TX) through 1kΩ to DFPlayer RX; speaker between SPK1 and SPK2; microSD with `/mp3/0001.mp3`. Leave DFPlayer TX unconnected. | Track 1 plays after startup. Reset the Uno to play it again. The built-in LED blinks to show the sketch is running. |
 
 ### Notes for individual tests
 
@@ -42,10 +39,6 @@ the matching `.ino` from that folder; do not combine the sketches.
   its longest lead goes to 5V, and AW pins 13–15 sink current active-low.
 - If the seven-segment display is common-anode (part number ending in `BS`),
   change `COMMON_ANODE_DISPLAY` to `true` near the top of its sketch.
-- The DFPlayer test uses D1 and does not print to the Serial Monitor. Its blinking
-  LED only confirms that the sketch is running; sound confirms the player, card,
-  and speaker path. Upload with the DFPlayer unpowered or its RX wire disconnected;
-  reconnect it after upload with power off, then close the Serial Monitor.
 
 After the separate checks pass, assemble the modules and run the full game sketch
 from `arduino_sketch/arduino_sketch.ino`.

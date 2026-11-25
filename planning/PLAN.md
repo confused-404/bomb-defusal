@@ -14,12 +14,11 @@ The players win by solving all three modules before the countdown reaches zero.
 3. **Play.** A correct solution lights that module's green LED, and the Arduino tracks which modules are complete.
    An incorrect action incurs a penalty.
 4. **Finish.** Completing all three modules in time triggers the victory sequence.
-   If time expires first, the game plays the simulated explosion sequence.
+   If time expires first, the displays show the loss state and the red warning LED lights.
 5. **Reset.** Pressing Reset returns the game to the setup screen for a new randomized round.
 
 The timer and control module shows the countdown on a four-digit display.
-The speaker provides start sounds, button feedback, low-time warnings, and the two end-of-round sequences.
-The red LED can accompany the low-time warning.
+The red LED blinks for the low-time warning. Feedback and end states use LEDs and displays only.
 
 ## Puzzle modules
 
@@ -74,7 +73,6 @@ Ordering status is unknown because the pasted list did not retain its highlighti
 | RGB Flash Sequence | 1 RGB LED and 1 large push button | RGB LED: Adafruit 6158, $1.95. |
 | Serial Code | 1 16×2 LCD, 1 LCD backpack, 3 potentiometers, and 3 small toggle switches | Backpack: Adafruit 292, $9.95. |
 | Timer and controls | 1 four-digit seven-segment display, Start and Reset buttons, 1 red LED, and 1 large master power switch | Display: Adafruit 865, $3.95. |
-| Audio | 1 speaker, 1 DFPlayer Mini MP3 player, and a microSD card | Speaker: Adafruit 6486, $1.95. DFPlayer Mini: $6.99. Amplifier requirement is open. |
 | Connections and prototyping | 1 QT-to-male connector, an I/O expander, resistors, capacitors, jumper wires, and a breadboard | Connector: $0.95 ([Adafruit 4209](https://www.adafruit.com/product/4209)). Expander options: PCF8574 or Adafruit AW9523 GPIO Expander and LED Driver Breakout (STEMMA QT / Qwiic), $4.95 for the AW9523. |
 
 The controls total seven push buttons (four colored, one large, Start, and Reset) and four switches (three puzzle toggles and the master power switch).
@@ -102,7 +100,7 @@ The original plan marks all four workstreams below as taken.
 
 - [ ] Finalize the power design, resistor values, and capacitor requirements.
 - [ ] Choose an I/O expander and draft the Arduino pin map.
-- [ ] Draw the wiring diagram for the TFT, LCD, countdown display, DFPlayer Mini, buttons, LEDs, potentiometers, and switches.
+- [ ] Draw the wiring diagram for the TFT, LCD, countdown display, buttons, LEDs, potentiometers, and switches.
 - [ ] Test the individual components and identify any additional parts needed.
 
 ### Software
@@ -142,8 +140,8 @@ The original plan marks all four workstreams below as taken.
 
 ### Timer and controls
 
-- [ ] Mount the countdown display, Start and Reset buttons, red LED, master switch, speaker, and DFPlayer Mini.
-- [ ] Install the microSD card, wire the display, buttons, red LED, and speaker, and test the display and audio.
+- [ ] Mount the countdown display, Start and Reset buttons, red LED, and master switch.
+- [ ] Wire and test the display, buttons, and red LED.
 - [ ] Connect setup selections to the countdown, lock them on Start, and return to setup on Reset.
 - [ ] Implement low-time warnings, the victory sequence, and the simulated explosion sequence.
 - [ ] Test all timer settings and game modes.

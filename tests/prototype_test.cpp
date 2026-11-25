@@ -125,7 +125,7 @@ void matrixTests() {
 }
 void gameTests() {
   setup();
-  assert(state == SETUP && lastShownSeconds == 300 && !audioReady);
+  assert(state == SETUP && lastShownSeconds == 300);
   assert(TIMSK2 == _BV(OCIE2A) && OCR2A == 249);  // 500 Hz display refresh.
   assert(matrix.awake && matrix.rows[0] == 0x80);  // Setup shows the top-left marker.
   assert((fakeOutputs & RGB_BITS) == RGB_BITS && (fakeOutputs & STATUS_BITS) == 0);
@@ -221,29 +221,27 @@ void gameTests() {
   advance(5); assert(flashOn && flashIndex == 0);
 
   prepare();
-  remainingMs = 29900; lastWarning = fakeNow - 5000;
-  fakeAudioPresent = audioReady = true;
-  advance(5); assert(fakeTrack == 7);
+  remainingMs = 29900;
+  advance(5);
   { bool seenOn = false, seenOff = false;  // Warning LED blinks.
     for (int i = 0; i < 100; ++i) { advance(5); (fakeDigital[WARNING_PIN] ? seenOn : seenOff) = true; }
     assert(seenOn && seenOff); }
   remainingMs = 5000;
   press((symbolAnswer[0] + 1) % 4);
-  assert(state == LOST && remainingMs == 0 && fakeTrack == 6 && fakeDigital[WARNING_PIN] == HIGH);
+  assert(state == LOST && remainingMs == 0 && fakeDigital[WARNING_PIN] == HIGH);
   for (uint8_t y = 0; y < 8; ++y) assert(matrix.rows[y] == ((0x80 >> y) | (1 << y)));  // Big X.
-  press(RESET); assert(state == SETUP && fakeTrack == 0);
+  press(RESET); assert(state == SETUP && fakeDigital[WARNING_PIN] == LOW);
   prepare();
   solved[0] = solved[1] = true;
   setSerial(); assert(serialMatching);
   remainingMs = 10; advance(1000);
   assert(state == LOST && !solved[2] && lastShownSeconds == 0);
-  // Expiry during a sound command cannot become victory.
+  // Time elapsed before completing a module cannot become victory after expiry.
   prepare();
   solved[0] = solved[1] = true;
   remainingMs = 10; fakeNow += 20;
   completeModule(2); assert(state == LOST && !solved[2]);
   // millis() rollover, using the Uno's unsigned 32-bit arithmetic.
-  audioReady = false;
   prepare();
   fakeNow = UINT32_MAX - 100;
   lastTick = lastScan = fakeNow;
@@ -254,5 +252,5 @@ void gameTests() {
 int main() {
   ruleTests(); displayTests(); gameTests(); matrixTests();
   puts("PASS: rules, pot reading, 7-seg multiplexing, matrix symbols, 9 difficulty/timer games, toggles, debounce, "
-       "penalties, reset, dwell, flash/audio timing, expiry, rollover");
+       "penalties, reset, dwell, flash timing, warning LED, expiry, rollover");
 }

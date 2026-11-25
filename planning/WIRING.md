@@ -17,26 +17,24 @@ temporary but playable. Keep USB unplugged and the battery switched off while wi
 | Serial module controls | 3 × 10kΩ pots + 3 toggle switches (lab) |
 | Countdown | Kit 4-digit 7-segment display + 74HC595 |
 | Status / warning LEDs | 3 green + 1 red LEDs |
-| Sound | DFPlayer Mini + speaker + microSD card |
 | Power | Kit 9V battery → kit power supply module (battery), or Uno USB (bench) |
 | Master on/off | Large toggle between the power module's 5V pin and the + rail (section 3) |
 
-**Resistors:** 10 × 10kΩ, 7 × 330Ω (220Ω also works), 9 × 1kΩ.
+**Resistors:** 10 × 10kΩ, 7 × 330Ω (220Ω also works), 8 × 1kΩ.
 
 ## 2. Makerspace prep (soldering)
 
 1. **LCD backpack → LCD1602:** solder the backpack onto the LCD's 16-pin header,
    matching pin 1 to pin 1. Leave the backpack's SPI jumper open.
 2. **Key switches:** solder a wire to each switch's two metal pins (no polarity), and fit colored caps.
-3. **Matrix, AW9523, DFPlayer:** solder header pins if they are not already attached.
-   Solder the speaker wires to the DFPlayer's SPK1 and SPK2.
+3. **Matrix, AW9523:** solder header pins if they are not already attached.
 4. **Pots and toggles:** solder wires to them if they don't fit the breadboard.
 
 ## 3. Power and breadboard rails
 
 All parts get power from the breadboard rails: **+ rail = 5V** and **− rail = GND**. Every part's GND goes to the − rail.
-If your breadboard's rails are split in the middle, bridge them.
-Rough estimate: about 250mA on average, with peaks near 400mA when sounds play.
+If your breadboard's rails are split in the middle, bridge them. Current draw and battery
+runtime depend on display brightness and the final wiring; verify the supply under load.
 
 ### Battery play: 9V battery → kit power supply module
 
@@ -63,9 +61,9 @@ master switch **off** first, and unplug USB before switching it back on.
 Otherwise two 5V supplies push against each other through the Uno, which can stress the
 module, the Uno, or the computer's USB port.
 
-**Battery life:** a 9V alkaline gives roughly **30–60 minutes** at this draw, and the module's
-regulator gets warm. Keep `AUDIO_VOLUME` low. For longer play, use a 6 × AA holder with a
-barrel plug (it fits the same jack) or a rechargeable 9V.
+The power module's regulator can get warm; check it during a full session. Measure battery
+runtime with the completed build. For longer play,
+use a 6 × AA holder with a barrel plug (it fits the same jack) or a rechargeable 9V.
 
 ### Bench: USB only
 
@@ -73,9 +71,9 @@ With the module off or unplugged, plug the Uno's USB into a computer. The Uno 5V
 
 ### If it resets
 
-If the Uno resets or the displays flicker when a sound plays, lower `AUDIO_VOLUME` or replace the battery.
-If that isn't enough, add a 100–470µF capacitor across the DFPlayer's VCC and GND,
-with the striped leg to GND.
+If the Uno resets or the displays flicker, check the battery and the power/GND jumpers.
+Confirm with a multimeter that the rail stays near 5V while the displays are running.
+
 ## 4. Connect the shared controller
 
 Before adding the puzzle modules, connect the Uno's 5V and GND pins to the breadboard rails.
@@ -206,58 +204,36 @@ Each pin needs its own 10kΩ pull-up to +5V. Reset is an input button, not the U
 Connect Uno **A3** through **330Ω** to the long leg of the red warning LED; connect
 its short leg to GND.
 
+Uno **D0, D1, D9, and D12** remain unused. D0/D1 are available for USB serial;
+there is no external device connected to them.
+
 ### Check it
 
 Run `06_countdown_display`; it cycles through `12.34`, `8888`, `0000`, and `1111`.
 The `8888` pattern checks all seven segments on all digits. Run `01_aw9523_inputs`
 for Start and Reset, and `02_aw9523_leds` for the red warning LED.
 
-## 9. System audio
-
-Connect DFPlayer **VCC** to +5V and **GND** to GND. Connect Uno **D1/TX** through
-**1kΩ** to DFPlayer **RX**. Leave DFPlayer TX unconnected. Connect the speaker between
-**SPK1 and SPK2**; neither speaker wire goes to GND.
-
-Format a microSD card as FAT32 (32GB or smaller) and add a `/mp3/` folder with your
-own short clips:
-
-| File | Sound |
-| --- | --- |
-| `0001.mp3` | Round starts |
-| `0002.mp3` | Correct symbol press |
-| `0003.mp3` | Wrong answer |
-| `0004.mp3` | Module solved |
-| `0005.mp3` | Victory |
-| `0006.mp3` | Simulated explosion |
-| `0007.mp3` | Low-time warning |
-
-Run `07_dfplayer` to play `/mp3/0001.mp3`. The Serial Monitor shares D1 with the
-DFPlayer; keep it closed during audio playback. If sounds reset the Uno or dim the
-displays, lower `AUDIO_VOLUME` or replace the battery. If needed, add a 100–470µF
-capacitor across DFPlayer VCC/GND, with the striped leg to GND.
-
-## 10. Upload and test
+## 9. Upload and test
 
 Before uploading over USB, switch off and disconnect the battery supply. Install
-**Adafruit AW9523**, **LedControl**, **Adafruit LiquidCrystal**, and
-**DFRobotDFPlayerMini** in Arduino IDE's Library Manager; accept their dependencies.
+**Adafruit AW9523**, **LedControl**, and **Adafruit LiquidCrystal**
+in Arduino IDE's Library Manager; accept their dependencies.
 
 Test components individually using [`component_tests/README.md`](../component_tests/README.md).
-Upload the sketch in each test's matching folder. For any test that uses the Serial
-Monitor, disconnect the DFPlayer RX wire from D1 and open the monitor at the baud rate
-shown in the test guide. For the DFPlayer test, close the monitor.
+Upload the sketch in each test's matching folder. For tests that use the Serial
+Monitor, open it at the baud rate shown in the test guide.
 
 When the individual checks pass, open `arduino_sketch/arduino_sketch.ino`, select
 **Arduino Uno** and its port, and upload the full game.
 
-## 11. How to play / prototype expert manual
+## 10. How to play / prototype expert manual
 
 **Setup** (shown on the LCD): red = Easy, yellow = Medium, green = Hard.
 Blue cycles the timer through 3, 5, and 8 minutes.
 Start begins the round. Reset returns to setup at any time and keeps your settings.
 A wrong symbol press or wrong flash answer costs **10 seconds**. The LCD shows the count as `X:n`.
 When all three green LEDs are lit, you win.
-Under 30 seconds, the red LED blinks and a warning plays every 5 seconds.
+Under 30 seconds, the red LED blinks. Feedback and end states use LEDs and displays only.
 
 ### Symbol Sequence (LED matrix + colored keys)
 
@@ -299,7 +275,7 @@ Hard `8A31F2` → **9 5 1**, switches **0 0 1**.
 Hold the correct settings for 0.75 seconds to solve. Wrong settings never cost time.
 A new round always picks a code that doesn't match where the controls are already set.
 
-## 12. Full game bench test
+## 11. Full game bench test
 
 After the individual tests pass, reconnect any modules you temporarily disconnected.
 Turn off the battery module, unplug USB, then power up from the battery. The LCD should
@@ -316,8 +292,8 @@ show "Level: Easy", the countdown `05.00`, and the matrix's top-left LED.
 
 ## Software checks
 
-Uno build: **17,026 bytes flash (52%)**, **833 bytes global RAM (40%)**, no warnings from the sketch.
-All seven component-test sketches compile for Uno.
+Uno build: **15,012 bytes flash (46%)**, **605 bytes global RAM (29%)**, no warnings from the sketch.
+All six component-test sketches compile for Uno.
 The host tests drive the real `loop()` with fake hardware. They cover:
 - every symbol layout and Hard flash pattern
 - the manual examples
