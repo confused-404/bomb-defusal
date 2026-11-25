@@ -1,0 +1,51 @@
+# Component wiring tests
+
+Use these small sketches to check the hardware **one module at a time**, before
+running the full game. Each folder contains a standalone Arduino sketch. Upload
+the matching `.ino` from that folder; do not combine the sketches.
+
+## Before testing
+
+1. **Check the supply first.** With the Uno and components disconnected, set both
+   power-module jumpers to **5V**. Use a multimeter to confirm the module produces
+   about 5V at its output. Check that the master switch turns that output on and
+   off. Never put 9V directly on the breadboard 5V rail.
+2. For bench tests, turn the battery module **off** and use **USB only**. Connect
+   Uno 5V and GND to the breadboard rails so the parts under test get power.
+   Never have USB and the battery module on at the same time.
+3. Disconnect the DFPlayer's RX wire from Uno D1 for tests that use the Serial
+   Monitor. D1 is also the Uno's USB transmit line, so monitor text would go to
+   the DFPlayer. Use **115200 baud** where a test calls for the Serial Monitor.
+4. Follow the full pin and resistor details in the [wiring guide](../planning/WIRING.md). Keep each
+   test's power off while changing wires.
+
+## Run the tests
+
+| Test sketch | What to connect | What you should see |
+| --- | --- | --- |
+| `01_aw9523_inputs/01_aw9523_inputs.ino` | AW9523 power and I²C (SDA A4, SCL A5); each AW pin 0–9 gets its own 10kΩ pull-up to 5V and a switch/button to GND. | Serial Monitor lists all ten inputs. Press/close each control and its state changes. |
+| `02_aw9523_leds/02_aw9523_leds.ino` | Red warning LED on A3 through 330Ω; green LEDs on AW pins 10–12 through 330Ω; common-anode RGB on AW pins 13–15 through 330Ω. | The warning LED, three green LEDs, then RGB red/green/blue light in sequence. |
+| `03_max7219_matrix/03_max7219_matrix.ino` | Matrix VCC/GND; DIN D11, CLK D13, CS/LOAD D10. Use the module's **IN** connector. | A corner pixel appears, the rows sweep, then every pixel is visited. |
+| `04_lcd_backpack/04_lcd_backpack.ino` | LCD backpack power and I²C (DAT/SDA A4, CLK/SCL A5). | Both text rows appear; the backlight briefly turns off and back on. |
+| `05_pots/05_pots.ino` | Pot wipers to A0, A1, A2; each pot's outer pins to 5V and GND. | Serial Monitor shows each raw reading and a digit from 0–9 as you turn the pots. |
+| `06_countdown_display/06_countdown_display.ino` | 4-digit display and 74HC595 wired as described under Module 4 in the wiring guide. | The display cycles through `12.34`, `8888`, `0000`, and `1111`; the dot should appear on `12.34`. |
+| `07_dfplayer/07_dfplayer.ino` | DFPlayer VCC/GND; Uno D1 (TX) through 1kΩ to DFPlayer RX; speaker between SPK1 and SPK2; microSD with `/mp3/0001.mp3`. Leave DFPlayer TX unconnected. | Track 1 plays after startup. Reset the Uno to play it again. The built-in LED blinks to show the sketch is running. |
+
+### Notes for individual tests
+
+- In the AW9523 input test, AW pins 0–3 are the colored keys, 4 is the flash
+  answer button, 5 is Start, 6 is Reset, and 7–9 are toggles. A button press or
+  toggle ON closes the input to GND, so the reading is **LOW**.
+- The AW9523 does not provide the input pull-ups; install all ten 10kΩ resistors.
+  Do not connect an input directly to 5V when its button or toggle is closed to GND.
+- AW pins 10–12 drive the green LEDs active-high. The RGB LED is common-anode:
+  its longest lead goes to 5V, and AW pins 13–15 sink current active-low.
+- If the seven-segment display is common-anode (part number ending in `BS`),
+  change `COMMON_ANODE_DISPLAY` to `true` near the top of its sketch.
+- The DFPlayer test uses D1 and does not print to the Serial Monitor. Its blinking
+  LED only confirms that the sketch is running; sound confirms the player, card,
+  and speaker path. Upload with the DFPlayer unpowered or its RX wire disconnected;
+  reconnect it after upload with power off, then close the Serial Monitor.
+
+After the separate checks pass, assemble the modules and run the full game sketch
+from `arduino_sketch/arduino_sketch.ino`.

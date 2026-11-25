@@ -1,8 +1,7 @@
-# Prototype wiring and quick start
+# Prototype wiring and module-by-module guide
 
-This builds the game in `PLAN.md` from the Adafruit parts you received, the Uno R3 kit,
-and pots, toggle switches, and buttons from the lab. The puzzle rules are temporary but playable.
-Wire everything with USB unplugged and the battery switched off.
+This walks through wiring the parts you have, one module at a time. The puzzle rules are
+temporary but playable. Keep USB unplugged and the battery switched off while wiring.
 
 ## 1. What each part does
 
@@ -77,80 +76,112 @@ With the module off or unplugged, plug the Uno's USB into a computer. The Uno 5V
 If the Uno resets or the displays flicker when a sound plays, lower `AUDIO_VOLUME` or replace the battery.
 If that isn't enough, add a 100–470µF capacitor across the DFPlayer's VCC and GND,
 with the striped leg to GND.
-## 4. Uno pins
+## 4. Connect the shared controller
 
-| Uno pin | Goes to |
-| --- | --- |
-| 5V, GND | Breadboard + and − rails (powered by the module on battery) |
-| A4 (SDA) | AW9523 SDA (QT **blue**), LCD backpack **DAT** |
-| A5 (SCL) | AW9523 SCL (QT **yellow**), LCD backpack **CLK** |
-| D13 | Matrix **CLK** |
-| D11 | Matrix **DIN** |
-| D10 | Matrix **CS** (sometimes labeled LOAD) |
-| D3, D5, D6, D7 | 7-seg digit 1, 2, 3, 4 (display pins 12, 9, 8, 6) |
-| D2 | 74HC595 pin 14 (DS, data) |
-| D4 | 74HC595 pin 11 (SH_CP, clock) |
-| D8 | 74HC595 pin 12 (ST_CP, latch) |
-| A0, A1, A2 | Middle pin of pot 1, 2, 3 |
-| A3 | 330Ω → red LED long leg; short leg → GND |
-| D1 (TX) | 1kΩ → DFPlayer **RX** |
-| D0, D9, D12 | Leave empty. DFPlayer TX stays unconnected. |
+Before adding the puzzle modules, connect the Uno's 5V and GND pins to the breadboard rails.
+Connect the AW9523 VIN (QT **red**) to +5V, GND (QT **black**) to GND,
+SDA (QT **blue**) to Uno **A4**, and SCL (QT **yellow**) to **A5**.
+The LCD backpack will share this I²C bus later. The AW9523 address is `0x58`;
+the Adafruit LCD backpack address is `0x20`. Leave AW9523 INT and RST unconnected.
 
-**Power for the parts:** connect the + rail to matrix **VCC**, AW9523 VIN (QT **red**),
-LCD backpack **5V**, and DFPlayer **VCC**. Connect the − rail to all their GND pins (QT **black**).
-
-**MAX7219 matrix:** use the 5-pin end marked **IN** (VCC, GND, DIN, CS, CLK). Leave the OUT end empty.
-During setup, the matrix lights its top-left LED as an orientation check. If a different corner lights,
-adjust `MATRIX_ROTATION` or `MATRIX_MIRROR` in the sketch.
-
-**Pots:** connect each pot's two outer pins to the + and − rails. If turning clockwise lowers
-the number, swap those two wires. Mark the faceplates 0–9. LCD row 2 shows the live reading,
-so you can calibrate the marks against it.
-
-**LCD backpack:** use its terminal block. LAT stays empty. Turn the contrast screw until text appears.
-
-**Audio uses the Uno's USB serial line.** Uploading still works with it connected.
-Keep the Serial Monitor closed while playing, because anything sent there also reaches the DFPlayer.
-
-## 5. AW9523 pins
-
-The AW9523 has no built-in pull-ups, so every button and toggle uses this circuit:
+The AW9523 has no built-in pull-ups. Install one **10kΩ pull-up per input**, pins 0–9,
+from +5V to that AW pin. Each button or switch then connects the AW pin to GND:
 
 ```text
-+5V ── 10kΩ ──┬── AW9523 pin
-              └── button / toggle ── GND
++5V ── 10kΩ ──┬── AW9523 input
+              └── button / switch ── GND
 ```
 
-For 4-leg buttons, use two **diagonal** legs. For a toggle, wire its middle pin to the AW9523 pin
-and one outer pin to GND, leaving the other outer pin empty. The position that connects to GND is **ON**.
+Pressed or ON reads **LOW**. For a 4-leg button, use a pair of legs that only connects
+when pressed. For a toggle, connect its middle pin to the AW input and one outside pin
+to GND; leave the other outside pin empty. Mark the position that connects to GND as ON.
 
-| AW pin | Connection |
+Now wire and test one module at a time.
+
+## 5. Module 1: Symbol Sequence
+
+### Wire the matrix
+
+Use the MAX7219 module's 5-pin **IN** end; leave OUT empty. Connect VCC to +5V,
+GND to GND, **DIN to D11**, **CLK to D13**, and **CS/LOAD to D10**.
+
+### Wire the four keys and status light
+
+Connect the red, yellow, green, and blue key switches to AW9523 pins **0, 1, 2, and 3**,
+respectively. One switch terminal goes to its AW pin; the other goes to GND.
+The matching 10kΩ pull-up goes from that AW pin to +5V.
+
+Connect the module's green status LED from AW pin **10**, through **330Ω**, to its
+long leg. Connect its short leg to GND.
+
+### Check it
+
+Run `03_max7219_matrix` from `component_tests/`. The pixel sweep should visit the full
+matrix. The game sketch uses the top-left corner as its orientation reference; if the
+orientation is wrong, adjust `MATRIX_ROTATION` or `MATRIX_MIRROR`.
+Run `01_aw9523_inputs` to press each colored key and check that only its input changes.
+Run `02_aw9523_leds` to check the green status LED.
+
+## 6. Module 2: RGB Flash Sequence
+
+### Wire the RGB light and answer button
+
+This is a **common-anode** RGB LED. Connect its longest lead to +5V. Identify the R, G,
+and B leads from the part markings or datasheet. Connect each color lead through its
+own **330Ω resistor** to AW9523 pins **13 (red), 14 (green), and 15 (blue)**.
+These outputs turn on at LOW.
+
+Connect the large answer button to AW pin **4** and GND, with its 10kΩ pull-up from
+AW pin 4 to +5V.
+
+Connect the module's green status LED from AW pin **11**, through **330Ω**, to its
+long leg; connect the short leg to GND.
+
+### Check it
+
+Run `02_aw9523_leds` to see red, green, and blue one at a time, then run
+`01_aw9523_inputs` and check the answer button changes AW pin 4.
+
+## 7. Module 3: Serial Code
+
+### Wire the LCD, dials, and switches
+
+Connect the Adafruit #292 LCD backpack's **5V** and **GND** to the rails, **DAT** to
+Uno A4/SDA, and **CLK** to A5/SCL. This shares the bus with the AW9523.
+Leave LAT unconnected. Turn the contrast screw until the text is readable.
+
+For each of the three 10kΩ pots, connect the two outside pins to +5V and GND, and the
+middle pin (wiper) to **A0, A1, or A2**. If clockwise rotation reduces the reading,
+swap that pot's outside wires. Mark the dial from 0 to 9.
+
+Connect toggles 1–3 to AW9523 pins **7, 8, and 9**, respectively. For each toggle,
+connect the middle terminal to its AW pin, one outside terminal to GND, and leave the
+other outside terminal empty. Its 10kΩ pull-up connects the AW pin to +5V.
+
+Connect the module's green status LED from AW pin **12**, through **330Ω**, to its
+long leg; connect the short leg to GND.
+
+### Check it
+
+Run `04_lcd_backpack` and confirm both rows and the backlight work. Run `05_pots` with
+the Serial Monitor at 115200 baud; each dial should read from 0 through 9.
+Run `01_aw9523_inputs` and check all three toggle states.
+
+## 8. Module 4: Countdown and game controls
+
+### Wire the four-digit display
+
+Hold the display with digits facing you and decimal points at the bottom. Pin 1 is
+bottom-left; pins 1–6 run left-to-right along the bottom, and pins 7–12 run right-to-left
+along the top.
+
+Place the 74HC595 with its notch facing left and pin 1 at bottom-left. Connect it as follows:
+
+| 74HC595 pin | Connect to |
 | --- | --- |
-| 0, 1, 2, 3 | Red, yellow, green, blue key switch |
-| 4 | Flash answer button |
-| 5 | Start button |
-| 6 | Reset button (not the Uno's RESET pin) |
-| 7, 8, 9 | Toggle 1, 2, 3 |
-| 10, 11, 12 | 330Ω → green LED long leg; short leg → GND. Symbol, Flash, Serial modules. |
-| 13, 14, 15 | 330Ω → RGB red, green, blue leg |
-| RGB longest leg | + rail (common anode) |
-| INT, RST | Leave empty |
-
-To identify the RGB legs, connect the longest leg to 5V. Then touch each other leg
-to GND through 330Ω and note its color.
-
-## 6. Countdown display (4-digit 7-segment + 74HC595)
-
-The display has 12 pins. Hold it with the digits facing you and the decimal points at the bottom.
-Pin 1 is bottom-left, pins 1–6 run left to right along the bottom, and pins 7–12 run right to left along the top.
-
-**74HC595 chip** (notch facing left, pin 1 is bottom-left):
-
-| 595 pin | Connect to |
-| --- | --- |
-| 16 (VCC), 10 (MR) | + rail |
-| 8 (GND), 13 (OE) | − rail |
-| 14, 11, 12 | Uno D2, D4, D8 |
+| 16 (VCC), 10 (MR) | +5V rail |
+| 8 (GND), 13 (OE) | GND rail |
+| 14 (DS), 11 (SH_CP), 12 (ST_CP) | Uno D2, D4, D8 |
 | 15 (Q0) | 1kΩ → display pin 11 (segment A) |
 | 1 (Q1) | 1kΩ → display pin 7 (B) |
 | 2 (Q2) | 1kΩ → display pin 4 (C) |
@@ -159,17 +190,36 @@ Pin 1 is bottom-left, pins 1–6 run left to right along the bottom, and pins 7�
 | 5 (Q5) | 1kΩ → display pin 10 (F) |
 | 6 (Q6) | 1kΩ → display pin 5 (G) |
 | 7 (Q7) | 1kΩ → display pin 3 (decimal point) |
-| 9 | Leave empty |
+| 9 | Leave unconnected |
 
-The digit pins (12, 9, 8, 6) go straight to Uno D3, D5, D6, D7.
-The 1kΩ resistors keep each Uno pin under about 25mA, so no transistors are needed.
-Time shows as `MM.SS`, with the decimal point standing in for the colon.
-A part number ending in **…AS** (e.g. 5461AS) is common cathode, which is the default.
-One ending in **…BS** is common anode, so set `COMMON_ANODE_DISPLAY = true`.
+Connect the display's digit pins **12, 9, 8, and 6** directly to Uno **D3, D5, D6,
+and D7**, respectively. Keep all eight 1kΩ segment resistors. A display part number
+ending in `AS` is common-cathode; one ending in `BS` is common-anode. For common-anode,
+set `COMMON_ANODE_DISPLAY = true` in both the game sketch and its component test.
+The timer displays `MM.SS`.
 
-## 7. Audio files
+### Wire Start, Reset, and the warning light
 
-Use a FAT32 microSD card (32GB or smaller) with a folder `/mp3/` containing your own short clips:
+Connect the Start button to AW pin **5** and GND, and Reset to AW pin **6** and GND.
+Each pin needs its own 10kΩ pull-up to +5V. Reset is an input button, not the Uno's RESET pin.
+
+Connect Uno **A3** through **330Ω** to the long leg of the red warning LED; connect
+its short leg to GND.
+
+### Check it
+
+Run `06_countdown_display`; it cycles through `12.34`, `8888`, `0000`, and `1111`.
+The `8888` pattern checks all seven segments on all digits. Run `01_aw9523_inputs`
+for Start and Reset, and `02_aw9523_leds` for the red warning LED.
+
+## 9. System audio
+
+Connect DFPlayer **VCC** to +5V and **GND** to GND. Connect Uno **D1/TX** through
+**1kΩ** to DFPlayer **RX**. Leave DFPlayer TX unconnected. Connect the speaker between
+**SPK1 and SPK2**; neither speaker wire goes to GND.
+
+Format a microSD card as FAT32 (32GB or smaller) and add a `/mp3/` folder with your
+own short clips:
 
 | File | Sound |
 | --- | --- |
@@ -181,13 +231,26 @@ Use a FAT32 microSD card (32GB or smaller) with a folder `/mp3/` containing your
 | `0006.mp3` | Simulated explosion |
 | `0007.mp3` | Low-time warning |
 
-## 8. Upload
+Run `07_dfplayer` to play `/mp3/0001.mp3`. The Serial Monitor shares D1 with the
+DFPlayer; keep it closed during audio playback. If sounds reset the Uno or dim the
+displays, lower `AUDIO_VOLUME` or replace the battery. If needed, add a 100–470µF
+capacitor across DFPlayer VCC/GND, with the striped leg to GND.
 
-In the Arduino IDE Library Manager, install **Adafruit AW9523**, **LedControl**,
-**Adafruit LiquidCrystal**, and **DFRobotDFPlayerMini**. Accept their dependencies when asked.
-Open `arduino_sketch/arduino_sketch.ino`, pick **Arduino Uno** and its port, then upload.
+## 10. Upload and test
 
-## 9. How to play / prototype expert manual
+Before uploading over USB, switch off and disconnect the battery supply. Install
+**Adafruit AW9523**, **LedControl**, **Adafruit LiquidCrystal**, and
+**DFRobotDFPlayerMini** in Arduino IDE's Library Manager; accept their dependencies.
+
+Test components individually using [`component_tests/README.md`](../component_tests/README.md).
+Upload the sketch in each test's matching folder. For any test that uses the Serial
+Monitor, disconnect the DFPlayer RX wire from D1 and open the monitor at the baud rate
+shown in the test guide. For the DFPlayer test, close the monitor.
+
+When the individual checks pass, open `arduino_sketch/arduino_sketch.ino`, select
+**Arduino Uno** and its port, and upload the full game.
+
+## 11. How to play / prototype expert manual
 
 **Setup** (shown on the LCD): red = Easy, yellow = Medium, green = Hard.
 Blue cycles the timer through 3, 5, and 8 minutes.
@@ -236,20 +299,25 @@ Hard `8A31F2` → **9 5 1**, switches **0 0 1**.
 Hold the correct settings for 0.75 seconds to solve. Wrong settings never cost time.
 A new round always picks a code that doesn't match where the controls are already set.
 
-## 10. First bench test
+## 12. Full game bench test
 
-1. Power up. The LCD should show "Level: Easy", the countdown `05.00`, and the matrix's top-left LED.
-   If the matrix stays dark, check VCC, GND, DIN (D11), CLK (D13), and CS (D10), and make sure you used the IN end.
-   If it says "AW9523 missing", check the QT cable's wiring to A4/A5, 5V, and GND.
-2. Press each color key and check the level on the LCD. Press blue to cycle `03.00`, `05.00`, `08.00`.
-3. Start Easy. Turn each pot and flip each toggle, and watch LCD row 2 follow them.
-4. Solve each module and check that its green LED lights. Victory shows a check mark on the matrix and "DEFUSED!" on the LCD.
-5. Reset. Make deliberate mistakes; each should take 10 seconds. Let the time run out to check the
+After the individual tests pass, reconnect any modules you temporarily disconnected.
+Turn off the battery module, unplug USB, then power up from the battery. The LCD should
+show "Level: Easy", the countdown `05.00`, and the matrix's top-left LED.
+
+- If the matrix stays dark, check VCC, GND, DIN (D11), CLK (D13), and CS (D10), and make sure you used the IN end.
+- If the LCD says "AW9523 missing", check the QT cable's wiring to A4/A5, 5V, and GND.
+
+1. Press each color key and check the level on the LCD. Press blue to cycle `03.00`, `05.00`, `08.00`.
+2. Start Easy. Turn each pot and flip each toggle, and watch LCD row 2 follow them.
+3. Solve each module and check that its green LED lights. Victory shows a check mark on the matrix and "DEFUSED!" on the LCD.
+4. Reset. Make deliberate mistakes; each should take 10 seconds. Let the time run out to check the
    warning, `00.00`, and a large X on the matrix with "BOOM! Time's up" on the LCD. Then repeat on Medium and Hard.
 
 ## Software checks
 
 Uno build: **17,026 bytes flash (52%)**, **833 bytes global RAM (40%)**, no warnings from the sketch.
+All seven component-test sketches compile for Uno.
 The host tests drive the real `loop()` with fake hardware. They cover:
 - every symbol layout and Hard flash pattern
 - the manual examples
