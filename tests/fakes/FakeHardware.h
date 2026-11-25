@@ -4,14 +4,20 @@
 
 // Only for host logic tests. These do not simulate electrical behavior.
 const uint8_t A0 = 14, A1 = 15, A2 = 16, A3 = 17;
-const uint8_t LOW = 0, HIGH = 1, INPUT = 0, OUTPUT = 1;
-const uint16_t ST77XX_BLACK = 0, ST77XX_WHITE = 1, ST77XX_GREEN = 2,
-               ST77XX_RED = 3, ST77XX_BLUE = 4;
+const uint8_t LOW = 0, HIGH = 1, INPUT = 0, OUTPUT = 1, MSBFIRST = 1;
 #define F(s) s
+#define ISR(name) void name()
+#define _BV(bit) (1 << (bit))
+static uint8_t TCCR2A, TCCR2B, OCR2A, TIMSK2;
+const uint8_t WGM21 = 1, CS22 = 2, CS20 = 0, OCIE2A = 1;
+inline void noInterrupts() {}
+inline void interrupts() {}
+
 static uint32_t fakeNow = 0;
 static uint16_t fakeInputs = 0xffff, fakeOutputs = 0;
 static uint16_t fakeAdc[18] = {};
 static uint8_t fakeDigital[18] = {};
+static uint8_t fakeShifted = 0;
 static bool fakeAudioPresent = false;
 static uint8_t fakeTrack = 0;
 inline uint32_t millis() { return fakeNow; }
@@ -22,6 +28,7 @@ inline long random(long bound) { return rand() % bound; }
 inline int analogRead(uint8_t pin) { return fakeAdc[pin]; }
 inline void pinMode(uint8_t, uint8_t) {}
 inline void digitalWrite(uint8_t pin, uint8_t value) { fakeDigital[pin] = value; }
+inline void shiftOut(uint8_t, uint8_t, uint8_t, uint8_t value) { fakeShifted = value; }
 struct Printer {
   void begin(uint32_t) {}
   template <typename T> void print(T) {}
@@ -39,26 +46,14 @@ struct Adafruit_AW9523 {
     else fakeOutputs &= ~((uint16_t)1 << pin);
   }
 };
-struct Adafruit_ST7789 : Printer {
-  Adafruit_ST7789(uint8_t, uint8_t, uint8_t) {}
-  void init(int, int) {}
-  void setRotation(int) {}
-  void fillScreen(int) {}
-  void setCursor(int, int) {}
-  void setTextSize(int) {}
-  void setTextColor(int) {}
-  void drawCircle(int, int, int, int) {}
-  void drawTriangle(int, int, int, int, int, int, int) {}
-  void drawRect(int, int, int, int, int) {}
-  void drawLine(int, int, int, int, int) {}
-};
-struct Adafruit_7segment {
-  uint8_t digits[5] = {};
-  void begin(uint8_t) {}
-  void setBrightness(int) {}
-  void writeDigitNum(uint8_t position, uint8_t number) { digits[position] = number; }
-  void drawColon(bool) {}
-  void writeDisplay() {}
+struct LedControl {
+  uint8_t rows[8] = {};
+  bool awake = false;
+  LedControl(int, int, int, int) {}
+  void shutdown(int, bool off) { awake = !off; }
+  void setIntensity(int, int) {}
+  void clearDisplay(int) { for (uint8_t &r : rows) r = 0; }
+  void setRow(int, int row, uint8_t value) { rows[row] = value; }
 };
 struct Adafruit_LiquidCrystal : Printer {
   Adafruit_LiquidCrystal(int) {}
@@ -67,10 +62,8 @@ struct Adafruit_LiquidCrystal : Printer {
   void clear() {}
   void setCursor(int, int) {}
 };
-struct SoftwareSerial : Printer { SoftwareSerial(int, int) {} };
 struct DFRobotDFPlayerMini {
-  bool begin(SoftwareSerial &, bool, bool) { return fakeAudioPresent; }
-  void disableACK() {}
+  bool begin(Printer &, bool, bool) { return fakeAudioPresent; }
   void volume(int) {}
   void stop() { fakeTrack = 0; delay(20); }
   void playMp3Folder(uint8_t track) { fakeTrack = track; delay(20); }

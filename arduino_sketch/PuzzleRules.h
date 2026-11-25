@@ -19,16 +19,17 @@ inline uint8_t makeFlashAnswer(uint8_t count, const uint8_t *colors, const uint8
   return taps;
 }
 
-inline void makeSerialAnswer(uint8_t level, const uint8_t *code, uint8_t *pots, uint8_t *toggles) {
+inline void makeSerialAnswer(uint8_t level, const uint8_t *code, uint8_t *dials, uint8_t *switches) {
   for (uint8_t i = 0; i < 3; ++i) {
-    pots[i] = level == 0 ? code[i] :
-              (level == 1 ? (code[i] + code[i + 3]) % 10 : (code[i] ^ code[i + 3]) % 10);
-    toggles[i] = level == 2 ? ((code[i + 3] & 1) ^ (code[0] >= 8)) : 0;
+    dials[i] = level == 0 ? code[i] :
+               (level == 1 ? (code[i] + code[i + 3]) % 10 : (code[i] ^ code[i + 3]) % 10);
+    switches[i] = level == 2 ? ((code[i + 3] & 1) ^ (code[0] >= 8)) : 0;
   }
-  if (level == 1) toggles[0] = (code[0] + code[1] + code[2]) % 2;
+  if (level == 1) switches[0] = (code[0] + code[1] + code[2]) % 2;
 }
 
-// Ten equal ADC bins with an 8-count deadband to avoid boundary flicker.
+// Converts a pot reading (0-1023) to a digit 0-9 using ten equal ranges.
+// A small dead zone at each boundary stops the value flickering between two digits.
 inline uint8_t readPotDigit(uint16_t adc, uint8_t previous) {
   uint8_t digit = (uint32_t)adc * 10 / 1024;
   if (digit > previous && adc < ((uint16_t)(previous + 1) * 1024 + 9) / 10 + 8) return previous;
