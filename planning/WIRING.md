@@ -79,20 +79,37 @@ Confirm with a multimeter that the rail stays near 5V while the displays are run
 Before adding the puzzle modules, connect the Uno's 5V and GND pins to the breadboard rails.
 Connect the AW9523 VIN (QT **red**) to +5V, GND (QT **black**) to GND,
 SDA (QT **blue**) to Uno **A4**, and SCL (QT **yellow**) to **A5**.
-The LCD backpack will share this I²C bus later. The AW9523 address is `0x58`;
-the Adafruit LCD backpack address is `0x20`. Leave AW9523 INT and RST unconnected.
+Leave the AW9523's INT and RST pins empty. That's all the wiring for this step.
+(The LCD will later connect to the same A4 and A5 wires. That works because the two
+boards have different built-in addresses, so you don't need to set anything.)
 
-The AW9523 has no built-in pull-ups. Install one **10kΩ pull-up per input**, pins 0–9,
-from +5V to that AW pin. Each button or switch then connects the AW pin to GND:
+### How every button and switch is wired (read now, build later)
+
+You don't wire anything else in this step. The module sections below tell you which
+button goes to which AW9523 pin, and each one uses the same three-part hookup:
+
+1. Run a jumper from the AW9523 pin (for example, pin 0) to an empty column on the breadboard.
+2. Put a **10kΩ resistor** from that column to the **+ rail**.
+3. Put one leg of the button or switch in that same column, and wire its other leg to the **− rail**.
 
 ```text
-+5V ── 10kΩ ──┬── AW9523 input
-              └── button / switch ── GND
++ rail ── 10kΩ ──┐
+                 ├── column ── jumper ── AW9523 pin
+− rail ── button ┘
 ```
 
-Pressed or ON reads **LOW**. For a 4-leg button, use a pair of legs that only connects
-when pressed. For a toggle, connect its middle pin to the AW input and one outside pin
-to GND; leave the other outside pin empty. Mark the position that connects to GND as ON.
+Why the resistor is needed: when the button is up, the resistor gently holds the pin at
+5V, so the AW9523 reads HIGH. Pressing the button connects the pin straight to GND, so it
+reads LOW. Without the resistor, an unpressed pin "floats" and gives random readings.
+The AW9523 has no resistor like this built in, so each of AW pins 0–9 needs its own.
+You'll use all ten 10kΩ resistors this way.
+
+**4-leg push buttons:** the legs are connected in pairs inside. To be safe, use two legs
+that are **diagonally opposite** each other. Those only connect when the button is pressed.
+
+**Toggle switches (3 pins):** the middle pin goes into the column. One outside pin goes to
+the − rail, and the other outside pin stays empty. The position that connects the middle
+pin to the − rail is **ON**. Mark it on the faceplate.
 
 Now wire and test one module at a time.
 
