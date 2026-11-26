@@ -4,15 +4,19 @@
 // Button indices: red=0, yellow=1, green=2, blue=3.
 inline uint8_t makeSymbolAnswer(uint8_t level, const uint8_t *s, uint8_t *answer) {
   if (level == 0) { answer[0] = s[0]; return 1; }
-  if (level == 1) { answer[0] = s[1]; answer[1] = s[0]; return 2; }
-  for (uint8_t i = 0; i < 4; ++i) {
-    answer[2 * i] = s[i];
-    answer[2 * i + 1] = (s[i] + 2) % 4;
-  }
-  return 8;
+  for (uint8_t i = 0; i < 4; ++i) answer[i] = s[i];
+  return 4;
 }
 
-// Flash colors: red=0, green=1, blue=2. Dot=1 unit, dash=2 units.
+// RGB channel masks, in tap-value order: red, green, blue, yellow, cyan, magenta.
+const uint8_t FLASH_MASKS[] = {1, 2, 4, 3, 6, 5};
+
+inline uint8_t decodeToggle(uint8_t level, const uint8_t *code, const uint8_t *virtualDials,
+                            uint8_t length, uint8_t step) {
+  if (level == 0) return code[step] % 3;
+  uint8_t digit = level == 2 ? code[length - 1 - step] : code[step];
+  return (digit + virtualDials[level == 2 ? step % 3 : 0]) % 3;
+}
 inline uint8_t makeFlashAnswer(uint8_t count, const uint8_t *colors, const uint8_t *longFlash) {
   uint8_t taps = 0;
   for (uint8_t i = 0; i < count; ++i) taps += (colors[i] + 1) * (longFlash[i] ? 2 : 1);

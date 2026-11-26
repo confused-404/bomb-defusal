@@ -46,9 +46,9 @@ bool rawInput[INPUT_COUNT] = {}, stableInput[INPUT_COUNT] = {};
 bool pressed[INPUT_COUNT] = {}, released[INPUT_COUNT] = {};
 uint32_t changedAt[INPUT_COUNT] = {};
 
-uint8_t symbols[4] = {}, symbolAnswer[8] = {}, symbolLength = 0, symbolPosition = 0;
+uint8_t symbols[4] = {}, symbolAnswer[4] = {}, symbolLength = 0, symbolPosition = 0, symbolUsed = 0;
 
-uint8_t flashColors[5] = {}, flashLong[5] = {}, flashLength = 0, flashAnswer = 0;
+uint8_t flashColors[6] = {}, flashLong[6] = {}, flashLength = 0, flashAnswer = 0;
 uint8_t flashIndex = 0, tapCount = 0;
 bool flashOn = false;
 uint32_t flashChanged = 0, lastTapRelease = 0;
@@ -60,9 +60,10 @@ bool serialMatching = false;
 uint32_t serialMatchedAt = 0;
 
 // Toggle-order mode (used while dialsWired is false): the LCD shows hex digits, and
-// each digit decodes to the next toggle to flip (digit mod 3: 0 -> toggle 1, 1 -> 2, 2 -> 3).
+// simulated dial readings and difficulty determine how to decode it.
 uint8_t toggleCode[4] = {}, toggleOrder[4] = {}, toggleOrderLen = 0, toggleOrderPos = 0;
 bool toggleLast[3] = {};
+uint8_t virtualDials[3] = {};
 
 // ---- 8x8 LED matrix (MAX7219) for the Symbol Sequence ----
 // frame[y] bit x = LED at column x, row y, with (0, 0) the top-left as mounted.
@@ -107,14 +108,11 @@ void showFrame() {
   for (uint8_t r = 0; r < 8; ++r) matrix.setRow(0, r, rows[r]);
 }
 
-// Easy: one big symbol. Medium: left and right. Hard: four corners.
+// Easy: one big symbol. Medium and Hard: four corners.
 void drawSymbolPuzzle() {
   clearFrame();
   if (difficulty == 0) drawSymbol(symbols[0], 1, 1, 2);
-  else if (difficulty == 1) {
-    drawSymbol(symbols[0], 0, 2, 1);
-    drawSymbol(symbols[1], 5, 2, 1);
-  } else {
+  else {
     drawSymbol(symbols[0], 0, 0, 1);  // Top-left
     drawSymbol(symbols[1], 5, 0, 1);  // Top-right
     drawSymbol(symbols[2], 0, 5, 1);  // Bottom-left
@@ -165,7 +163,9 @@ void rgbOff() {
   for (uint8_t i = 0; i < 3; ++i) io.digitalWrite(RGB_FIRST + i, HIGH);
 }
 
-void rgbOn(uint8_t color) { io.digitalWrite(RGB_FIRST + color, LOW); }
+void rgbOn(uint8_t color) {
+  for (uint8_t i = 0; i < 3; ++i) io.digitalWrite(RGB_FIRST + i, !(FLASH_MASKS[color] & (1 << i)));
+}
 
 // LCD row 2 shows the live readings, e.g. "D:4 0 7 S:0 1 0", so faceplate
 // markings don't have to be perfectly calibrated.
@@ -206,12 +206,14 @@ void showSetup() {
   frame[0] = 1;  // Top-left LED: orientation marker.
   showFrame();
   lcd.clear();
-  lcd.print(F("Level: "));
   if (difficulty == 0) lcd.print(F("Easy"));
   else if (difficulty == 1) lcd.print(F("Medium"));
   else lcd.print(F("Hard"));
+  lcd.print(F(" / "));
+  lcd.print(ROUND_SECONDS[timerChoice] / 60);
+  lcd.print(F(" min"));
   lcd.setCursor(0, 1);
-  lcd.print(F("B=time START=go"));
+  lcd.print(F("Red:Lvl Blue:Min"));
   showTime(ROUND_SECONDS[timerChoice]);
 }
 
@@ -224,7 +226,7 @@ void resetGame() {
   digitalWrite(WARNING_PIN, LOW);
   rgbOff();
   tapCount = 0;
-  symbolPosition = 0;
+  symbolPosition = symbolUsed = 0;
   serialMatching = false;
   showSetup();  // Keeps the chosen difficulty and timer.
 }
@@ -278,13 +280,17 @@ void startGame() {
   randomSeed(micros());  // Human press timing makes each round different.
   for (uint8_t i = 0; i < 4; ++i) symbols[i] = random(4);
   symbolLength = makeSymbolAnswer(difficulty, symbols, symbolAnswer);
-  symbolPosition = 0;
+  symbolPosition = symbolUsed = 0;
 
-  flashLength = difficulty == 0 ? 1 : (difficulty == 1 ? 3 : 5);
-  uint8_t firstColor = random(3);
+  flashLength = difficulty == 0 ? 1 : (difficulty == 1 ? 3 : 6);
   for (uint8_t i = 0; i < flashLength; ++i) {
-    flashColors[i] = difficulty == 0 ? 0 : (difficulty == 1 ? (firstColor + i) % 3 : random(3));
+    flashColors[i] = i;
     flashLong[i] = random(2);
+  }
+  for (uint8_t i = flashLength - 1; i > 0; --i) {
+    uint8_t j = random(i + 1), color = flashColors[j];
+    flashColors[j] = flashColors[i];
+    flashColors[i] = color;
   }
   flashAnswer = makeFlashAnswer(flashLength, flashColors, flashLong);
 
@@ -302,7 +308,10 @@ void startGame() {
     toggleOrderLen = difficulty == 0 ? 2 : (difficulty == 1 ? 3 : 4);
     for (uint8_t i = 0; i < toggleOrderLen; ++i) {
       toggleCode[i] = random(16);
-      toggleOrder[i] = toggleCode[i] % 3;
+    }
+    if (difficulty) for (uint8_t &dial : virtualDials) dial = 1 + random(9);
+    for (uint8_t i = 0; i < toggleOrderLen; ++i) {
+      toggleOrder[i] = decodeToggle(difficulty, toggleCode, virtualDials, toggleOrderLen, i);
     }
     toggleOrderPos = 0;
     for (uint8_t i = 0; i < 3; ++i) toggleLast[i] = stableInput[TOGGLE_PINS[i]];
@@ -325,6 +334,10 @@ void startGame() {
     lcd.setCursor(0, 1);
     lcd.print(F("S:"));
     for (uint8_t i = 0; i < 3; ++i) { lcd.print(toggleLast[i]); if (i < 2) lcd.print(' '); }
+    if (difficulty) {
+      lcd.print(F(" D:"));
+      for (uint8_t dial : virtualDials) lcd.print(dial);
+    }
   }
 
   tapCount = 0;
@@ -463,9 +476,7 @@ void loop() {
   }
   if (state == SETUP) {
     bool changed = false;
-    for (uint8_t i = 0; i < 3; ++i) {
-      if (pressed[i]) { difficulty = i; changed = true; }
-    }
+    if (pressed[0]) { difficulty = (difficulty + 1) % 3; changed = true; }
     if (pressed[3]) { timerChoice = (timerChoice + 1) % 3; changed = true; }
     if (changed) showSetup();
     if (pressed[START]) startGame();
@@ -477,10 +488,21 @@ void loop() {
   if (!solved[0]) {
     for (uint8_t i = 0; i < 4 && state == PLAYING; ++i) {
       if (!pressed[i]) continue;
-      if (i == symbolAnswer[symbolPosition]) {
+      bool correct = i == symbolAnswer[symbolPosition];
+      if (difficulty == 1) {
+        correct = false;
+        for (uint8_t slot = 0; slot < symbolLength; ++slot) {
+          if (!(symbolUsed & (1 << slot)) && symbolAnswer[slot] == i) {
+            symbolUsed |= 1 << slot;
+            correct = true;
+            break;
+          }
+        }
+      }
+      if (correct) {
         if (++symbolPosition == symbolLength) { completeModule(0); break; }
       } else {
-        symbolPosition = 0;
+        symbolPosition = symbolUsed = 0;
         penalty();
       }
     }

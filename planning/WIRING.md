@@ -283,9 +283,9 @@ When the individual checks pass, open `arduino_sketch/arduino_sketch.ino`, selec
 
 ## 10. How to play / prototype expert manual
 
-**Setup** (shown on the LCD): red = Easy, yellow = Medium, green = Hard.
-Blue cycles the timer through 3, 5, and 8 minutes.
-Start begins the round. Reset returns to setup at any time and keeps your settings.
+**Setup:** the LCD shows the selected difficulty and duration together, e.g. `Easy / 5 min`.
+Press **red** to cycle Easy → Medium → Hard. Press **blue** to cycle 3 → 5 → 8 minutes.
+The seven-segment display also previews the time. Start begins the round. Reset returns to setup at any time and keeps your settings.
 A wrong symbol press, flash answer, or toggle flip costs **10 seconds**.
 When all three green LEDs are lit, you win.
 Under 30 seconds, the red LED blinks. Feedback and end states use LEDs and displays only.
@@ -300,35 +300,58 @@ Under 30 seconds, the red LED blinks. Feedback and end states use LEDs and displ
 | Dot | single dot | Blue |
 
 - **Easy:** one enlarged symbol. Press its key.
-- **Medium:** symbols appear left and right; press the **right** symbol's key, then the **left** one.
-- **Hard:** symbols appear in the four corners. Go top-left, top-right, bottom-left, bottom-right. For each symbol, press its key,
-  then its opposite (**red ↔ green, yellow ↔ blue**). That makes 8 presses.
+- **Medium:** four corner symbols. Press the four matching keys in **any order**. Repeated symbols need repeated presses.
+- **Hard:** the same four-corner layout. Press the matching keys **in order**: top-left, top-right, bottom-left, bottom-right.
 - A mistake restarts this module from the first press.
 
 ### RGB Flash Sequence (RGB light + answer button)
 
 A dot lasts 250ms and a dash lasts 750ms. A 2-second dark pause marks where the pattern repeats.
-Easy is 1 red flash. Medium is 3 flashes that cycle colors. Hard is 5 flashes of any color.
-Values are **red = 1, green = 2, blue = 3**, doubled for a dash. Add them up.
-Tap the answer button that many times, then wait 1.5 seconds to submit.
-For example, a red dot plus a blue dash is 1 + 6 = 7 taps.
+Easy has one red flash. Medium has one each of red, green, and blue. Hard adds
+yellow, cyan, and magenta, for six flashes total. The colors are shuffled on Medium and Hard.
+
+| Color | Short | Long |
+| --- | --- | --- |
+| Red | 1 | 2 |
+| Green | 2 | 4 |
+| Blue | 3 | 6 |
+| Yellow | 4 | 8 |
+| Cyan | 5 | 10 |
+| Magenta | 6 | 12 |
+
+Add the flash values from one pattern. Tap the answer button that many times, then
+wait 1.5 seconds to submit. Short red + long blue = 7 taps.
 
 ### Serial Code (LCD + pots + toggles)
 
 **While the dials are unwired, this module is a flip-order puzzle instead:** the LCD
-shows a short hex code like `Code:A5`. Read it left to right and use this key:
+shows a short hex code. The LCD's `S:` row shows live switch positions, left to right.
+On Medium and Hard, `D:247` means the three simulated dial readings are 2, 4, 7.
+Use those numbers as clues; there are no physical dials to set.
 
-| Hex digit | Toggle to flip |
+| Level | Read the hex code | Add before decoding |
+| --- | --- | --- |
+| Easy (2 digits) | Left to right | Nothing |
+| Medium (3 digits) | Left to right | The first dial reading to every digit |
+| Hard (4 digits) | Right to left | Dial 1, dial 2, dial 3, then dial 1 again |
+
+Convert A–F to 10–15. For each digit (after the addition), divide by 3 and use
+the remainder: **0 = left (AW9), 1 = middle (AW8), 2 = right (AW7)**.
+For Easy, you can also use this lookup:
+
+| Hex digit | Switch to flip |
 | --- | --- |
-| `0 3 6 9 C F` | 1 (left, AW9) |
-| `1 4 7 A D` | 2 (middle, AW8) |
-| `2 5 8 B E` | 3 (right, AW7) |
+| `0 3 6 9 C F` | Left |
+| `1 4 7 A D` | Middle |
+| `2 5 8 B E` | Right |
 
-For `A5`, flip toggle **2**, then toggle **3**. For `AD`, flip toggle **2** twice,
-once in each direction. Either direction counts. Flip one at a time: a wrong flip
-or two flips registered together costs 10 seconds and restarts the sequence. You
-don't need to put the toggles back. Easy has 2 digits, Medium 3, Hard 4. Row 2
-shows the switch positions left to right while the puzzle is active, not the answer.
+- Easy `0A`: left, middle.
+- Medium `A5C`, `D:247`: add 2 to 10, 5, 12 → 12, 7, 14 → left, middle, right.
+- Hard `A5C7`, `D:247`: read 7, 12, 5, 10; add 2, 4, 7, 2 → 9, 16, 12, 12 → left, middle, left, left.
+
+Either direction counts. For a repeated switch, flip it once each way. A wrong
+flip or flips registered together cost 10 seconds and restart the sequence;
+leave the switches where they are.
 
 The rest of this section only applies when the pots are wired and `dialsWired` is true.
 
@@ -351,7 +374,7 @@ A new round always picks a code that doesn't match where the controls are alread
 
 After the individual tests pass, reconnect any modules you temporarily disconnected.
 Turn off the battery module, unplug USB, then power up from the battery. The LCD should
-show "Level: Easy", the countdown `05.00`, and the matrix's top-left LED.
+show "Easy / 5 min", the countdown `05.00`, and the matrix's top-left LED.
 
 - If the matrix stays dark, check VCC, GND, DIN (D11), CLK (D13), and CS (D10), and make sure you used the IN end.
 - If the LCD says "AW9523 missing", check the QT cable's wiring to A4/A5, 5V, and GND.
@@ -361,7 +384,7 @@ show "Level: Easy", the countdown `05.00`, and the matrix's top-left LED.
   Flash (AW11), Serial (AW12). With power off, check the stuck LED's wiring:
   AW pin → 330Ω → LED long leg; LED short leg → GND.
 
-1. Press each color key and check the level on the LCD. Press blue to cycle `03.00`, `05.00`, `08.00`.
+1. Press red to cycle the difficulty. Press blue to cycle `03.00`, `05.00`, `08.00`.
 2. Start Easy. The LCD should show a hex code like `Code:A5`. Decode it (see the
    Serial Code manual) and flip the toggles in that order; the Serial module's green
    LED lights. A flip out of order costs 10 seconds. (Once the dials are wired and
@@ -372,7 +395,7 @@ show "Level: Easy", the countdown `05.00`, and the matrix's top-left LED.
 
 ## Software checks
 
-Uno build: **14,756 bytes flash (45%)**, **611 bytes global RAM (29%)**, no warnings from the sketch.
+Uno build: **15,114 bytes flash (46%)**, **619 bytes global RAM (30%)**, no warnings from the sketch.
 All six component-test sketches compile for Uno.
 The host tests drive the real `loop()` with fake hardware. They cover:
 - every symbol layout and Hard flash pattern

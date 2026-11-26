@@ -71,15 +71,7 @@ void loop() {
     hold(1500);
   }
 
-  // 3. Medium: Box left + Plus right, then Cross left + Dot right.
-  for (uint8_t s = 0; s < 4; s += 2) {
-    clearFrame();
-    drawSymbol(s, 0, 2, 1);
-    drawSymbol(s + 1, 5, 2, 1);
-    hold(2000);
-  }
-
-  // 4. Hard: Box top-left, Plus top-right, Cross bottom-left, Dot bottom-right.
+  // 3. Medium and Hard: Box top-left, Plus top-right, Cross bottom-left, Dot bottom-right.
   clearFrame();
   drawSymbol(0, 0, 0, 1);
   drawSymbol(1, 5, 0, 1);
@@ -87,7 +79,7 @@ void loop() {
   drawSymbol(3, 5, 5, 1);
   hold(3000);
 
-  // 5. Win: check mark. 6. Loss: big X.
+  // 4. Win: check mark. 5. Loss: big X.
   for (uint8_t y = 0; y < 8; ++y) frame[y] = CHECK_MARK[y];
   hold(2000);
   for (uint8_t y = 0; y < 8; ++y) frame[y] = (1 << y) | (0x80 >> y);

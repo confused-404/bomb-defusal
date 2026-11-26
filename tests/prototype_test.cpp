@@ -37,26 +37,28 @@ void setSerial() { setControls(dialAnswer, switchAnswer); advance(50); }
 void ruleTests() {
   uint8_t s[] = {0, 1, 2, 3}, answer[8];
   assert(makeSymbolAnswer(0, s, answer) == 1 && answer[0] == 0);
-  assert(makeSymbolAnswer(1, s, answer) == 2 && answer[0] == 1 && answer[1] == 0);
-  const uint8_t hard[] = {0, 2, 1, 3, 2, 0, 3, 1};
-  assert(makeSymbolAnswer(2, s, answer) == 8);
-  for (uint8_t i = 0; i < 8; ++i) assert(answer[i] == hard[i]);
   for (int layout = 0; layout < 256; ++layout) {
     for (int i = 0; i < 4; ++i) s[i] = (layout >> (2 * i)) & 3;
-    for (uint8_t level = 0; level < 3; ++level) {
-      uint8_t count = makeSymbolAnswer(level, s, answer);
-      assert(count == (level == 0 ? 1 : level == 1 ? 2 : 8));
-      for (uint8_t i = 0; i < count; ++i) assert(answer[i] < 4);
-      if (level == 1) assert(answer[0] == s[1] && answer[1] == s[0]);
-      if (level == 2) for (uint8_t i = 0; i < 4; ++i) {
-        assert(answer[i * 2] == s[i]);
-        assert((answer[i * 2 + 1] + 2) % 4 == s[i]);
-      }
+    for (uint8_t level = 1; level <= 2; ++level) {
+      assert(makeSymbolAnswer(level, s, answer) == 4);
+      assert(memcmp(s, answer, 4) == 0);
     }
   }
+  const uint8_t clue[] = {10, 5, 12, 7}, simulated[] = {2, 4, 7};
+  assert(decodeToggle(0, clue, simulated, 2, 0) == 1);
+  assert(decodeToggle(1, clue, simulated, 3, 0) == 0);
+  const uint8_t hardOrder[] = {0, 1, 0, 0};
+  for (uint8_t i = 0; i < 4; ++i) assert(decodeToggle(2, clue, simulated, 4, i) == hardOrder[i]);
+  const uint8_t palette[] = {1, 2, 4, 3, 6, 5};
+  for (uint8_t i = 0; i < 6; ++i) {
+    rgbOn(i);
+    assert(((~fakeOutputs & RGB_BITS) >> RGB_FIRST) == palette[i]);
+  }
+  uint8_t mixed[] = {3, 4, 5}, mixedLengths[] = {0, 1, 0};
+  assert(makeFlashAnswer(3, mixed, mixedLengths) == 20);
   uint8_t colors[] = {0, 2}, lengths[] = {0, 1};
   assert(makeFlashAnswer(2, colors, lengths) == 7);  // Manual example.
-  for (int pattern = 0; pattern < 7776; ++pattern) {  // All Hard patterns.
+  for (int pattern = 0; pattern < 7776; ++pattern) {  // All five-flash primary-color patterns.
     uint8_t c[5], d[5]; int n = pattern, expected = 0;
     const uint8_t values[] = {1, 2, 2, 4, 3, 6};
     for (int i = 0; i < 5; ++i) {
@@ -112,14 +114,13 @@ void matrixTests() {
   drawSymbolPuzzle();
   const uint8_t easy[8] = {0, 0x7E, 0x7E, 0x66, 0x66, 0x7E, 0x7E, 0};
   for (uint8_t y = 0; y < 8; ++y) assert(sent(y) == easy[y]);
-  difficulty = 1; symbols[0] = 2; symbols[1] = 3;  // Medium: Cross left, Dot right.
-  drawSymbolPuzzle();
-  const uint8_t medium[8] = {0, 0, 0x05, 0x42, 0x05, 0, 0, 0};
-  for (uint8_t y = 0; y < 8; ++y) assert(sent(y) == medium[y]);
   difficulty = 2;  // Hard: Box TL, Plus TR, Cross BL, Dot BR.
   symbols[0] = 0; symbols[1] = 1; symbols[2] = 2; symbols[3] = 3;
   drawSymbolPuzzle();
   const uint8_t hard[8] = {0x47, 0xE5, 0x47, 0, 0, 0x05, 0x42, 0x05};
+  for (uint8_t y = 0; y < 8; ++y) assert(sent(y) == hard[y]);
+  difficulty = 1;
+  drawSymbolPuzzle();
   for (uint8_t y = 0; y < 8; ++y) assert(sent(y) == hard[y]);
   // All four symbols are different from each other.
   for (uint8_t i = 0; i < 4; ++i) for (uint8_t j = i + 1; j < 4; ++j)
@@ -133,10 +134,12 @@ void gameTests() {
   assert(TIMSK2 == _BV(OCIE2A) && OCR2A == 249);  // 500 Hz display refresh.
   assert(matrix.awake && matrix.rows[0] == 0x80);  // Setup shows the top-left marker.
   assert((fakeOutputs & RGB_BITS) == RGB_BITS && (fakeOutputs & STATUS_BITS) == 0);
-  press(1); assert(difficulty == 1);
-  press(2); assert(difficulty == 2);
+  assert(lcd.rows[0] == "Easy / 5 min    ");
+  assert(lcd.rows[1] == "Red:Lvl Blue:Min");
+  press(0); assert(difficulty == 1 && lcd.rows[0] == "Medium / 5 min  ");
+  press(0); assert(difficulty == 2 && lcd.rows[0] == "Hard / 5 min    ");
   press(0); assert(difficulty == 0);
-  press(3); assert(lastShownSeconds == 480);
+  press(3); assert(lastShownSeconds == 480 && lcd.rows[0] == "Easy / 8 min    ");
   press(3); assert(lastShownSeconds == 180);
   press(3); assert(lastShownSeconds == 300);
   // Bounce is ignored; holding Start creates no repeated edge.
@@ -261,16 +264,19 @@ void gameTests() {
   assert((fakeOutputs & STATUS_BITS) == 0 && toggleOrderPos == 0 && beforeMs - remainingMs == 1000);
   assert(state == PLAYING && !solved[2] && toggleOrderLen == 3);
   assert(toggleLast[0] && !toggleLast[1] && !toggleLast[2]);
+  const auto dialClue = lcd.rows[1].substr(7);
+  assert(dialClue == " D:" + std::to_string(virtualDials[0] * 100 + virtualDials[1] * 10 + virtualDials[2]) + "   ");
   for (uint8_t i = 0; i < toggleOrderLen; ++i) {
-    assert(toggleCode[i] < 16 && toggleOrder[i] == toggleCode[i] % 3);
+    assert(toggleCode[i] < 16 && toggleOrder[i] == (toggleCode[i] + virtualDials[0]) % 3);
   }
   // A flip out of order costs 10 seconds and restarts the sequence.
   const uint8_t manualSwitch[] = {1,2,3,1,2,3,1,2,3,1,2,3,1,2,3,1};
-  uint8_t wrongToggle = (manualSwitch[toggleCode[0]] % 3);
+  uint8_t wrongToggle = (manualSwitch[(toggleCode[0] + virtualDials[0]) % 3] % 3);
   beforeMs = remainingMs;
   uint8_t wrongPin = FACEPLATE_SWITCH_PINS[wrongToggle];
   setInput(wrongPin, !stableInput[wrongPin]); advance(50);
   assert(toggleOrderPos == 0 && beforeMs - remainingMs == 10050);
+  assert(lcd.rows[1].substr(7) == dialClue);
   // Several toggles in the same scan have no observable order.
   beforeMs = remainingMs;
   for (uint8_t pin : FACEPLATE_SWITCH_PINS) setInput(pin, !stableInput[pin]);
@@ -278,7 +284,7 @@ void gameTests() {
   assert(beforeMs - remainingMs == 10050 && toggleOrderPos == 0 && (fakeOutputs & STATUS_BITS) == 0);
   // Flip the toggles in the shown order (either direction) to solve.
   for (uint8_t i = 0; i < toggleOrderLen; ++i) {
-    uint8_t pin = FACEPLATE_SWITCH_PINS[manualSwitch[toggleCode[i]] - 1];
+    uint8_t pin = FACEPLATE_SWITCH_PINS[manualSwitch[(toggleCode[i] + virtualDials[0]) % 3] - 1];
     setInput(pin, !stableInput[pin]); advance(50);
   }
   assert(solved[2] && (fakeOutputs & (1 << (STATUS_FIRST + 2))));
@@ -286,6 +292,28 @@ void gameTests() {
   for (uint8_t i = 0; i < flashAnswer; ++i) press(LARGE);
   advance(1600);
   assert(state == WON);
+  // Same four symbols: reverse order is valid only on Medium, repeats count.
+  for (uint8_t level = 1; level <= 2; ++level) {
+    prepare(level);
+    uint8_t paletteSeen = 0;
+    for (uint8_t i = 0; i < flashLength; ++i) paletteSeen |= 1 << flashColors[i];
+    assert(flashLength == (level == 1 ? 3 : 6));
+    assert(paletteSeen == (level == 1 ? 7 : 63));
+    const uint8_t answers[] = {0, 1, 0, 3};
+    memcpy(symbolAnswer, answers, 4);
+    uint32_t before = remainingMs;
+    press(3); press(0); press(1); press(0);
+    assert(solved[0] == (level == 1));
+    assert(level == 1 ? before - remainingMs == 400 : before - remainingMs == 10400);
+    if (level == 1) {
+      prepare(level);
+      memcpy(symbolAnswer, answers, 4);
+      press(1); press(1);
+      assert(symbolPosition == 0 && symbolUsed == 0 && !solved[0]);
+      for (uint8_t key : answers) press(key);
+      assert(solved[0]);
+    }
+  }
   // millis() rollover, using the Uno's unsigned 32-bit arithmetic.
   prepare();
   fakeNow = UINT32_MAX - 100;

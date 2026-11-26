@@ -1,6 +1,8 @@
 #pragma once
 #include <stdint.h>
 #include <stdlib.h>
+#include <string>
+#include <cassert>
 
 // Only for host logic tests. These do not simulate electrical behavior.
 const uint8_t A0 = 14, A1 = 15, A2 = 16, A3 = 17;
@@ -56,6 +58,14 @@ struct Adafruit_LiquidCrystal : Printer {
   Adafruit_LiquidCrystal(int) {}
   void begin(int, int) {}
   void setBacklight(int) {}
-  void clear() {}
-  void setCursor(int, int) {}
+  std::string rows[2] = {std::string(16, ' '), std::string(16, ' ')};
+  int col = 0, row = 0;
+  void clear() {
+    for (auto &line : rows) line.assign(16, ' ');
+    setCursor(0, 0);
+  }
+  void setCursor(int x, int y) { col = x; row = y; }
+  void print(char c) { if (col < 16) rows[row][col++] = c; }
+  void print(const char *s) { while (*s) print(*s++); }
+  void print(int n) { print(std::to_string(n).c_str()); }
 };
