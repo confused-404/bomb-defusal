@@ -104,12 +104,9 @@ reads LOW. Without the resistor, an unpressed pin "floats" and gives random read
 The AW9523 has no resistor like this built in, so each of AW pins 0–9 needs its own.
 You'll use all ten 10kΩ resistors this way.
 
-**4-leg push buttons:** the legs are connected in pairs inside. To be safe, use two legs
-that are **diagonally opposite** each other. Those only connect when the button is pressed.
-
-**Toggle switches (3 pins):** the middle pin goes into the column. One outside pin goes to
-the − rail, and the other outside pin stays empty. The position that connects the middle
-pin to the − rail is **ON**. Mark it on the faceplate.
+**Which pin goes where doesn't matter.** Every button and switch here has two pins and no
+polarity, so either pin can go to the column and the other to the − rail.
+For a toggle, the position that closes the switch is **ON**. Mark it on the faceplate.
 
 Now wire and test one module at a time.
 
@@ -170,8 +167,8 @@ middle pin (wiper) to **A0, A1, or A2**. If clockwise rotation reduces the readi
 swap that pot's outside wires. Mark the dial from 0 to 9.
 
 Connect toggles 1–3 to AW9523 pins **7, 8, and 9**, respectively. For each toggle,
-connect the middle terminal to its AW pin, one outside terminal to GND, and leave the
-other outside terminal empty. Its 10kΩ pull-up connects the AW pin to +5V.
+connect one pin to its AW pin and the other to GND (either way round). Its 10kΩ
+pull-up connects the AW pin to +5V.
 
 Connect the module's green status LED from AW pin **12**, through **330Ω**, to its
 long leg; connect the short leg to GND.
