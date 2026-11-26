@@ -5,7 +5,7 @@ const uint8_t INPUT_COUNT = 10;
 const char *const INPUT_NAMES[INPUT_COUNT] = {
   "Red key", "Yellow key", "Green key", "Blue key",
   "Flash answer", "Start", "Reset",
-  "Toggle 1", "Toggle 2", "Toggle 3"
+  "Toggle 3", "Toggle 2", "Toggle 1"
 };
 
 Adafruit_AW9523 io;

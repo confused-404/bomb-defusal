@@ -10,6 +10,9 @@
 const uint8_t DIGIT_PINS[] = {3, 5, 6, 7};                 // Countdown digits 1-4, left to right.
 const uint8_t SEG_DATA = 2, SEG_CLOCK = 4, SEG_LATCH = 8;  // 74HC595.
 const uint8_t POT_PINS[] = {A0, A1, A2};                   // Serial Code dials 1-3.
+// Set true once the 3 pots are wired. While false, the Serial module becomes a
+// flip-order puzzle using just the toggles, and the analog pins are never read.
+bool dialsWired = false;
 const uint8_t WARNING_PIN = A3;                            // Red low-time LED.
 const bool COMMON_ANODE_DISPLAY = false;  // Part number ends in "BS"? Set true.
 const uint8_t MATRIX_DIN = 11, MATRIX_CLK = 13, MATRIX_CS = 10;  // MAX7219 module.
@@ -19,8 +22,9 @@ const bool MATRIX_MIRROR = false;
 // D0, D1, D9, and D12 are unused.
 
 // ---- AW9523 pins ----
-// Inputs 0-3: red, yellow, green, blue symbol keys. 7-9: Serial Code toggles 1-3.
-const uint8_t LARGE = 4, START = 5, RESET = 6, TOGGLE_FIRST = 7, INPUT_COUNT = 10;
+// Inputs 0-3: red, yellow, green, blue symbol keys.
+const uint8_t LARGE = 4, START = 5, RESET = 6, INPUT_COUNT = 10;
+const uint8_t TOGGLE_PINS[] = {9, 8, 7};  // Switches 1–3, left to right.
 const uint8_t STATUS_FIRST = 10;  // Green LEDs 10-12: Symbol, Flash, Serial.
 const uint8_t RGB_FIRST = 13;     // 13 red, 14 green, 15 blue. LOW lights.
 
@@ -37,7 +41,6 @@ uint8_t difficulty = 0, timerChoice = 1;
 bool solved[3] = {};
 uint32_t remainingMs = 0, lastTick = 0, lastScan = 0;
 uint16_t lastShownSeconds = 65535;
-uint8_t strikes = 0;
 
 bool rawInput[INPUT_COUNT] = {}, stableInput[INPUT_COUNT] = {};
 bool pressed[INPUT_COUNT] = {}, released[INPUT_COUNT] = {};
@@ -55,6 +58,11 @@ uint8_t serialDigits[6] = {}, dialAnswer[3] = {}, switchAnswer[3] = {};
 uint8_t dials[3] = {}, switches[3] = {};
 bool serialMatching = false;
 uint32_t serialMatchedAt = 0;
+
+// Toggle-order mode (used while dialsWired is false): the LCD shows hex digits, and
+// each digit decodes to the next toggle to flip (digit mod 3: 0 -> toggle 1, 1 -> 2, 2 -> 3).
+uint8_t toggleCode[4] = {}, toggleOrder[4] = {}, toggleOrderLen = 0, toggleOrderPos = 0;
+bool toggleLast[3] = {};
 
 // ---- 8x8 LED matrix (MAX7219) for the Symbol Sequence ----
 // frame[y] bit x = LED at column x, row y, with (0, 0) the top-left as mounted.
@@ -174,7 +182,7 @@ bool readSerialControls() {
   bool changed = false;
   for (uint8_t i = 0; i < 3; ++i) {
     uint8_t dial = readPotDigit(analogRead(POT_PINS[i]), dials[i]);
-    uint8_t toggle = stableInput[TOGGLE_FIRST + i];  // Closed to GND = ON.
+    uint8_t toggle = stableInput[TOGGLE_PINS[i]];  // Closed to GND = ON.
     if (dial != dials[i] || toggle != switches[i]) changed = true;
     dials[i] = dial;
     switches[i] = toggle;
@@ -218,7 +226,6 @@ void resetGame() {
   tapCount = 0;
   symbolPosition = 0;
   serialMatching = false;
-  strikes = 0;
   showSetup();  // Keeps the chosen difficulty and timer.
 }
 
@@ -253,12 +260,8 @@ void updateClock(uint32_t now) {
 void penalty() {
   updateClock(millis());
   if (state != PLAYING) return;
-  if (strikes < 99) ++strikes;
   remainingMs = remainingMs > 10000 ? remainingMs - 10000 : 0;
   showTime((remainingMs + 999) / 1000);
-  lcd.setCursor(12, 0);
-  lcd.print(F("X:"));
-  lcd.print(strikes);
   if (!remainingMs) finishGame(false);
 }
 
@@ -285,25 +288,44 @@ void startGame() {
   }
   flashAnswer = makeFlashAnswer(flashLength, flashColors, flashLong);
 
-  // Pick a code whose answer differs from the current knob/switch positions,
-  // so the module never solves itself.
-  readSerialControls();
-  do {
-    for (uint8_t i = 0; i < 6; ++i) serialDigits[i] = random(difficulty == 2 ? 16 : 10);
-    makeSerialAnswer(difficulty, serialDigits, dialAnswer, switchAnswer);
-  } while (serialSettingsMatch());
-  serialMatching = false;
+  if (dialsWired) {
+    // Pick a code whose answer differs from the current knob/switch positions,
+    // so the module never solves itself.
+    readSerialControls();
+    do {
+      for (uint8_t i = 0; i < 6; ++i) serialDigits[i] = random(difficulty == 2 ? 16 : 10);
+      makeSerialAnswer(difficulty, serialDigits, dialAnswer, switchAnswer);
+    } while (serialSettingsMatch());
+    serialMatching = false;
+  } else {
+    // No dials: the Serial module becomes a toggle-order puzzle instead.
+    toggleOrderLen = difficulty == 0 ? 2 : (difficulty == 1 ? 3 : 4);
+    for (uint8_t i = 0; i < toggleOrderLen; ++i) {
+      toggleCode[i] = random(16);
+      toggleOrder[i] = toggleCode[i] % 3;
+    }
+    toggleOrderPos = 0;
+    for (uint8_t i = 0; i < 3; ++i) toggleLast[i] = stableInput[TOGGLE_PINS[i]];
+  }
 
   drawSymbolPuzzle();
 
   lcd.clear();
-  lcd.print(F("Code:"));
-  for (uint8_t i = 0; i < (difficulty == 0 ? 3 : 6); ++i) {
-    lcd.print((char)(serialDigits[i] < 10 ? '0' + serialDigits[i] : 'A' + serialDigits[i] - 10));
+  if (dialsWired) {
+    lcd.print(F("Code:"));
+    for (uint8_t i = 0; i < (difficulty == 0 ? 3 : 6); ++i) {
+      lcd.print((char)(serialDigits[i] < 10 ? '0' + serialDigits[i] : 'A' + serialDigits[i] - 10));
+    }
+    drawSerialControls();
+  } else {
+    lcd.print(F("Code:"));
+    for (uint8_t i = 0; i < toggleOrderLen; ++i) {
+      lcd.print((char)(toggleCode[i] < 10 ? '0' + toggleCode[i] : 'A' + toggleCode[i] - 10));
+    }
+    lcd.setCursor(0, 1);
+    lcd.print(F("S:"));
+    for (uint8_t i = 0; i < 3; ++i) { lcd.print(toggleLast[i]); if (i < 2) lcd.print(' '); }
   }
-  lcd.setCursor(12, 0);
-  lcd.print(F("X:0"));
-  drawSerialControls();
 
   tapCount = 0;
   flashIndex = 0;
@@ -354,6 +376,28 @@ void updateFlashes(uint32_t now) {
 
 void updateSerial(uint32_t now) {
   if (solved[2]) return;
+  if (!dialsWired) {
+    // Toggle-order puzzle: every flip must be the next toggle in the shown order.
+    int8_t changed = -1;
+    uint8_t changeCount = 0;
+    for (uint8_t i = 0; i < 3; ++i) {
+      bool s = stableInput[TOGGLE_PINS[i]];
+      if (s == toggleLast[i]) continue;
+      toggleLast[i] = s;
+      lcd.setCursor(2 + 2 * i, 1);
+      lcd.print(s);
+      changed = i;
+      ++changeCount;
+    }
+    if (changed < 0) return;
+    if (changeCount == 1 && (uint8_t)changed == toggleOrder[toggleOrderPos]) {
+      if (++toggleOrderPos == toggleOrderLen) completeModule(2);
+    } else {
+      toggleOrderPos = 0;
+      penalty();
+    }
+    return;
+  }
   if (readSerialControls()) drawSerialControls();
   if (!serialSettingsMatch()) serialMatching = false;
   else if (!serialMatching) {
@@ -372,7 +416,9 @@ void setup() {
   pinMode(SEG_CLOCK, OUTPUT);
   pinMode(SEG_LATCH, OUTPUT);
   pinMode(WARNING_PIN, OUTPUT);
-  for (uint8_t i = 0; i < 3; ++i) dials[i] = (uint32_t)analogRead(POT_PINS[i]) * 10 / 1024;
+  if (dialsWired) {
+    for (uint8_t i = 0; i < 3; ++i) dials[i] = (uint32_t)analogRead(POT_PINS[i]) * 10 / 1024;
+  }
 
   for (uint8_t i = 0; i < MATRIX_COUNT; ++i) {
     matrix.shutdown(i, false);  // Wake up.

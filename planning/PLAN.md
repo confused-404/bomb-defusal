@@ -107,7 +107,7 @@ The original plan marks all four workstreams below as taken.
 
 - [ ] Set up the Arduino project and implement the game states.
 - [ ] Build the setup screen, difficulty and timer selection, and Start and Reset behavior.
-- [ ] Implement randomized puzzle generation, module completion tracking, and the penalty or strike system.
+- [ ] Implement randomized puzzle generation, module completion tracking, and time penalties.
 - [ ] Test individual inputs and outputs.
 
 ## Assembly, implementation, and testing

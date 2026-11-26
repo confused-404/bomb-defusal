@@ -15,11 +15,12 @@ const bool COMMON_ANODE_DISPLAY = false;  // Part number ends in "BS"? Set true.
 const uint8_t MATRIX_DIN = 11, MATRIX_CLK = 13, MATRIX_CS = 10;
 
 // ---- AW9523 pins ----
-const uint8_t FLASH_BUTTON = 4, START = 5, RESET = 6, TOGGLE_FIRST = 7, INPUT_COUNT = 10;
+const uint8_t FLASH_BUTTON = 4, START = 5, RESET = 6, INPUT_COUNT = 10;
+const uint8_t TOGGLE_PINS[] = {9, 8, 7};  // Switches 1–3, left to right.
 const uint8_t STATUS_FIRST = 10, RGB_FIRST = 13;  // RGB: 13 red, 14 green, 15 blue. LOW lights.
 const char *const INPUT_NAMES[INPUT_COUNT] = {
   "Red key", "Yellow key", "Green key", "Blue key",
-  "Flash button", "Start", "Reset", "Toggle 1", "Toggle 2", "Toggle 3"
+  "Flash button", "Start", "Reset", "Toggle 3", "Toggle 2", "Toggle 1"
 };
 
 Adafruit_AW9523 io;
@@ -163,7 +164,7 @@ void loop() {
       io.digitalWrite(RGB_FIRST + 2, !blue);
       bool reset = pressedBits & (1 << RESET);
       for (uint8_t i = 0; i < 3; ++i) {
-        io.digitalWrite(STATUS_FIRST + i, reset || (pressedBits & (1 << (TOGGLE_FIRST + i))));
+        io.digitalWrite(STATUS_FIRST + i, reset || (pressedBits & (1 << TOGGLE_PINS[i])));
       }
     }
     digitalWrite(WARNING_PIN, (pressedBits & (1 << START)) ? HIGH : LOW);
@@ -179,7 +180,7 @@ void loop() {
     for (uint8_t i = 0; i < 3; ++i) { lcd.print(lastDials[i]); lcd.print(' '); }
     lcd.print(F("S:"));
     for (uint8_t i = 0; i < 3; ++i) {
-      lcd.print((pressedBits & (1 << (TOGGLE_FIRST + i))) ? 1 : 0);
+      lcd.print((pressedBits & (1 << TOGGLE_PINS[i])) ? 1 : 0);
       if (i < 2) lcd.print(' ');
     }
   }

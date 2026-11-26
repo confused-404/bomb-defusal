@@ -4,6 +4,7 @@
 #include "../arduino_sketch/arduino_sketch.ino"
 
 const uint16_t RGB_BITS = 0xE000, STATUS_BITS = 0x1C00;
+const uint8_t FACEPLATE_SWITCH_PINS[] = {9, 8, 7};  // Left, middle, right on this build.
 
 void advance(uint32_t ms) {
   for (uint32_t i = 0; i < ms; i += 5) { fakeNow += 5; loop(); }
@@ -20,10 +21,11 @@ uint16_t potFor(uint8_t digit) { return (digit * 1024 + 512) / 10; }  // Middle 
 void setControls(const uint8_t *d, const uint8_t *s) {
   for (uint8_t i = 0; i < 3; ++i) {
     fakeAdc[POT_PINS[i]] = potFor(d[i]);
-    setInput(TOGGLE_FIRST + i, s[i]);
+    setInput(FACEPLATE_SWITCH_PINS[i], s[i]);
   }
 }
 void prepare(uint8_t level = 0, uint8_t minutes = 1) {
+  dialsWired = true;
   fakeInputs = 0xffff;
   advance(50);
   difficulty = level; timerChoice = minutes;
@@ -124,7 +126,9 @@ void matrixTests() {
     assert(memcmp(SYMBOL_ROWS[i], SYMBOL_ROWS[j], 3) != 0);
 }
 void gameTests() {
+  fakeAdc[A0] = 1023;
   setup();
+  assert(!dialsWired && dials[0] == 0);  // Ignore the unwired pin even at boot.
   assert(state == SETUP && lastShownSeconds == 300);
   assert(TIMSK2 == _BV(OCIE2A) && OCR2A == 249);  // 500 Hz display refresh.
   assert(matrix.awake && matrix.rows[0] == 0x80);  // Setup shows the top-left marker.
@@ -152,11 +156,11 @@ void gameTests() {
       uint8_t wrong = (symbolAnswer[0] + 1) % 4;
       uint32_t before = remainingMs;
       press(wrong);
-      assert(strikes == 1 && before - remainingMs == 10100 && symbolPosition == 0);
+      assert(before - remainingMs == 10100 && symbolPosition == 0);
       for (uint8_t i = 0; i < symbolLength; ++i) press(symbolAnswer[i]);
       assert(solved[0] && (fakeOutputs & (1 << STATUS_FIRST)));
-      uint8_t oldStrikes = strikes;
-      press(wrong); assert(strikes == oldStrikes);  // Solved module ignores input.
+      before = remainingMs;
+      press(wrong); assert(before - remainingMs == 100);  // Solved module ignores input.
       for (uint8_t i = 0; i < flashAnswer; ++i) press(LARGE);
       advance(1600);
       assert(solved[1] && (fakeOutputs & (1 << (STATUS_FIRST + 1))));
@@ -167,16 +171,18 @@ void gameTests() {
       assert(fakeDigital[WARNING_PIN] == LOW);
       press(RESET);
       assert(state == SETUP && !solved[0] && !solved[1] && !solved[2]);
-      assert(!tapCount && !symbolPosition && !serialMatching && !strikes);
+      assert(!tapCount && !symbolPosition && !serialMatching);
       assert((fakeOutputs & STATUS_BITS) == 0);
     }
   }
   prepare();
   flashAnswer = 2;
+  uint32_t beforeFlash = remainingMs;
   press(LARGE); advance(1600);
-  assert(strikes == 1 && tapCount == 0 && !solved[1]);
+  assert(beforeFlash - remainingMs == 11700 && tapCount == 0 && !solved[1]);
+  beforeFlash = remainingMs;
   setInput(LARGE, true); advance(2000);  // Held: must not submit.
-  assert(tapCount == 1 && strikes == 1);
+  assert(beforeFlash - remainingMs == 2000 && tapCount == 1);
   press(RESET);
   assert(state == SETUP && tapCount == 0);
   setInput(LARGE, false); advance(50);
@@ -192,9 +198,10 @@ void gameTests() {
   }
   // Toggles and pots are read live; wrong settings cost nothing; correct ones must hold 750ms.
   prepare(2);
+  uint32_t beforeDials = remainingMs;
   setSerial(); advance(300);
-  assert(serialMatching && !solved[2] && strikes == 0);
-  setInput(TOGGLE_FIRST, !switchAnswer[0]); advance(100);
+  assert(serialMatching && !solved[2] && beforeDials - remainingMs == 350);
+  setInput(FACEPLATE_SWITCH_PINS[0], !switchAnswer[0]); advance(100);
   assert(!serialMatching && switches[0] == !switchAnswer[0]);
   setSerial(); advance(400); assert(!solved[2]);
   advance(500); assert(solved[2]);
@@ -241,6 +248,44 @@ void gameTests() {
   solved[0] = solved[1] = true;
   remainingMs = 10; fakeNow += 20;
   completeModule(2); assert(state == LOST && !solved[2]);
+  // No dials: the manual decodes the hex clue; initial switch positions don't count.
+  dialsWired = false;
+  fakeInputs = 0xffff;
+  advance(50);
+  difficulty = 1; timerChoice = 1;
+  resetGame();
+  setInput(FACEPLATE_SWITCH_PINS[0], true); advance(50);
+  press(START);
+  uint32_t beforeMs = remainingMs;
+  advance(1000);
+  assert((fakeOutputs & STATUS_BITS) == 0 && toggleOrderPos == 0 && beforeMs - remainingMs == 1000);
+  assert(state == PLAYING && !solved[2] && toggleOrderLen == 3);
+  assert(toggleLast[0] && !toggleLast[1] && !toggleLast[2]);
+  for (uint8_t i = 0; i < toggleOrderLen; ++i) {
+    assert(toggleCode[i] < 16 && toggleOrder[i] == toggleCode[i] % 3);
+  }
+  // A flip out of order costs 10 seconds and restarts the sequence.
+  const uint8_t manualSwitch[] = {1,2,3,1,2,3,1,2,3,1,2,3,1,2,3,1};
+  uint8_t wrongToggle = (manualSwitch[toggleCode[0]] % 3);
+  beforeMs = remainingMs;
+  uint8_t wrongPin = FACEPLATE_SWITCH_PINS[wrongToggle];
+  setInput(wrongPin, !stableInput[wrongPin]); advance(50);
+  assert(toggleOrderPos == 0 && beforeMs - remainingMs == 10050);
+  // Several toggles in the same scan have no observable order.
+  beforeMs = remainingMs;
+  for (uint8_t pin : FACEPLATE_SWITCH_PINS) setInput(pin, !stableInput[pin]);
+  advance(50);
+  assert(beforeMs - remainingMs == 10050 && toggleOrderPos == 0 && (fakeOutputs & STATUS_BITS) == 0);
+  // Flip the toggles in the shown order (either direction) to solve.
+  for (uint8_t i = 0; i < toggleOrderLen; ++i) {
+    uint8_t pin = FACEPLATE_SWITCH_PINS[manualSwitch[toggleCode[i]] - 1];
+    setInput(pin, !stableInput[pin]); advance(50);
+  }
+  assert(solved[2] && (fakeOutputs & (1 << (STATUS_FIRST + 2))));
+  for (uint8_t i = 0; i < symbolLength; ++i) press(symbolAnswer[i]);
+  for (uint8_t i = 0; i < flashAnswer; ++i) press(LARGE);
+  advance(1600);
+  assert(state == WON);
   // millis() rollover, using the Uno's unsigned 32-bit arithmetic.
   prepare();
   fakeNow = UINT32_MAX - 100;
@@ -252,5 +297,5 @@ void gameTests() {
 int main() {
   ruleTests(); displayTests(); gameTests(); matrixTests();
   puts("PASS: rules, pot reading, 7-seg multiplexing, matrix symbols, 9 difficulty/timer games, toggles, debounce, "
-       "penalties, reset, dwell, flash timing, warning LED, expiry, rollover");
+       "penalties, reset, dwell, flash timing, warning LED, expiry, toggle order, rollover");
 }

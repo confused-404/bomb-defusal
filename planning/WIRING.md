@@ -104,9 +104,13 @@ reads LOW. Without the resistor, an unpressed pin "floats" and gives random read
 The AW9523 has no resistor like this built in, so each of AW pins 0–9 needs its own.
 You'll use all ten 10kΩ resistors this way.
 
-**Which pin goes where doesn't matter.** Every button and switch here has two pins and no
-polarity, so either pin can go to the column and the other to the − rail.
-For a toggle, the position that closes the switch is **ON**. Mark it on the faceplate.
+**2-pin keys and switches (colored keys, toggles):** no polarity, so either pin can go to
+the column and the other to the − rail. For a toggle, the position that closes the
+switch is **ON**. Mark it on the faceplate.
+
+**4-leg push buttons:** you only wire two of the four legs — one from each side.
+Module 2 (section 6) walks through finding the right legs with a multimeter; the same
+two-leg rule applies to Start and Reset in section 8.
 
 Now wire and test one module at a time.
 
@@ -136,22 +140,50 @@ Run `02_aw9523_leds` to check the green status LED.
 
 ## 6. Module 2: RGB Flash Sequence
 
-### Wire the RGB light and answer button
+### Wire the RGB light
 
 This is a **common-anode** RGB LED. Connect its longest lead to +5V. Identify the R, G,
 and B leads from the part markings or datasheet. Connect each color lead through its
 own **330Ω resistor** to AW9523 pins **13 (red), 14 (green), and 15 (blue)**.
 These outputs turn on at LOW.
 
-Connect the large answer button to AW pin **4** and GND, with its 10kΩ pull-up from
-AW pin 4 to +5V.
+### Wire the answer button (4 legs — you only use 2)
+
+The button's 4 legs stick out on two opposite sides, two per side. Inside the button,
+the two legs on the same side are joined together. Pressing the button joins the two
+sides. So you wire one leg from each side and leave the other two legs empty.
+
+```text
+ A1 ●      ● B1     A1 and A2 are joined inside; B1 and B2 are joined inside.
+     [BTN]          Pressing joins the A side to the B side.
+ A2 ●      ● B2     Wire one A leg and one B leg — which one of each doesn't matter.
+```
+
+**Step 1 — find the joined pairs.** Set the multimeter to continuity (beep mode).
+Touch the probes to the two legs on one side of the button. It should beep with the
+button just sitting there. Those two are the joined pair on that side.
+
+**Step 2 — pick one leg from each side.** Put one probe on a leg from one side and the
+other probe on a leg from the other side. Now it should beep **only while you hold the
+button down**. If it beeps without pressing, you picked two legs from the same side —
+move one probe to the other side and try again.
+
+**Step 3 — wire it.** Put one of your two chosen legs in an empty breadboard column.
+Run a jumper from that column to AW pin **4**, and a **10kΩ resistor** from the same
+column to the **+ rail**. Wire the other chosen leg to the **− rail**.
+
+**Step 4 — check it.** Run `01_aw9523_inputs`: pin 4 should read PRESSED only while
+the button is held. If it reads PRESSED all the time, you wired two same-side legs;
+move the GND wire to a leg on the other side.
 
 Connect the module's green status LED from AW pin **11**, through **330Ω**, to its
 long leg; connect the short leg to GND.
 
 ### Check it
 
-Run `02_aw9523_leds` to see red, green, and blue one at a time, then run
+Run `02_aw9523_leds` to see red, green, and blue one at a time. For a closer check,
+run `02b_rgb_led`: the Serial Monitor names each color as it shows. If a color
+doesn't match its name, swap those legs on AW pins 13–15. Then run
 `01_aw9523_inputs` and check the answer button changes AW pin 4.
 
 ## 7. Module 3: Serial Code
@@ -166,7 +198,13 @@ For each of the three 10kΩ pots, connect the two outside pins to +5V and GND, a
 middle pin (wiper) to **A0, A1, or A2**. If clockwise rotation reduces the reading,
 swap that pot's outside wires. Mark the dial from 0 to 9.
 
-Connect toggles 1–3 to AW9523 pins **7, 8, and 9**, respectively. For each toggle,
+**Dials are optional for now.** If the pots aren't wired, leave `dialsWired` set to
+`false` in the game sketch: the Serial module then becomes a flip-order puzzle using
+just the toggles (see the manual below). Once the pots are in, set `dialsWired = true`
+and the module works with dials and switches as the table describes.
+
+The toggles are numbered left to right when facing the controls: **1 (left) → AW9**,
+**2 (middle) → AW8**, **3 (right) → AW7**. For each toggle,
 connect one pin to its AW pin and the other to GND (either way round). Its 10kΩ
 pull-up connects the AW pin to +5V.
 
@@ -214,6 +252,8 @@ The timer displays `MM.SS`.
 
 Connect the Start button to AW pin **5** and GND, and Reset to AW pin **6** and GND.
 Each pin needs its own 10kΩ pull-up to +5V. Reset is an input button, not the Uno's RESET pin.
+These are the same kind of 4-leg buttons as the answer button: use one leg from each
+side, exactly as described in section 6, and check them with `01_aw9523_inputs`.
 
 Connect Uno **A3** through **330Ω** to the long leg of the red warning LED; connect
 its short leg to GND.
@@ -224,8 +264,9 @@ there is no external device connected to them.
 ### Check it
 
 Run `06_countdown_display`; it cycles through `12.34`, `8888`, `0000`, and `1111`.
-The `8888` pattern checks all seven segments on all digits. Run `01_aw9523_inputs`
-for Start and Reset, and `02_aw9523_leds` for the red warning LED.
+The `8888` pattern checks all seven segments on all digits. Then run
+`06b_countdown_timer` to watch it count down from `05.00`, like a real round.
+Run `01_aw9523_inputs` for Start and Reset, and `02_aw9523_leds` for the red warning LED.
 
 ## 9. Upload and test
 
@@ -245,7 +286,7 @@ When the individual checks pass, open `arduino_sketch/arduino_sketch.ino`, selec
 **Setup** (shown on the LCD): red = Easy, yellow = Medium, green = Hard.
 Blue cycles the timer through 3, 5, and 8 minutes.
 Start begins the round. Reset returns to setup at any time and keeps your settings.
-A wrong symbol press or wrong flash answer costs **10 seconds**. The LCD shows the count as `X:n`.
+A wrong symbol press, flash answer, or toggle flip costs **10 seconds**.
 When all three green LEDs are lit, you win.
 Under 30 seconds, the red LED blinks. Feedback and end states use LEDs and displays only.
 
@@ -274,6 +315,23 @@ For example, a red dot plus a blue dash is 1 + 6 = 7 taps.
 
 ### Serial Code (LCD + pots + toggles)
 
+**While the dials are unwired, this module is a flip-order puzzle instead:** the LCD
+shows a short hex code like `Code:A5`. Read it left to right and use this key:
+
+| Hex digit | Toggle to flip |
+| --- | --- |
+| `0 3 6 9 C F` | 1 (left, AW9) |
+| `1 4 7 A D` | 2 (middle, AW8) |
+| `2 5 8 B E` | 3 (right, AW7) |
+
+For `A5`, flip toggle **2**, then toggle **3**. For `AD`, flip toggle **2** twice,
+once in each direction. Either direction counts. Flip one at a time: a wrong flip
+or two flips registered together costs 10 seconds and restarts the sequence. You
+don't need to put the toggles back. Easy has 2 digits, Medium 3, Hard 4. Row 2
+shows the switch positions left to right while the puzzle is active, not the answer.
+
+The rest of this section only applies when the pots are wired and `dialsWired` is true.
+
 LCD row 1 shows the code. Row 2 shows the live settings, `D:4 0 7 S:0 1 0`, meaning
 dials (pots) 1–3 and switches (toggles) 1–3, where 1 = ON.
 Name the code's characters **A B C D E F** from left to right. On Hard, hex A–F mean 10–15.
@@ -297,16 +355,24 @@ show "Level: Easy", the countdown `05.00`, and the matrix's top-left LED.
 
 - If the matrix stays dark, check VCC, GND, DIN (D11), CLK (D13), and CS (D10), and make sure you used the IN end.
 - If the LCD says "AW9523 missing", check the QT cable's wiring to A4/A5, 5V, and GND.
+- All three green status LEDs should be off in Setup and immediately after Start.
+  If one stays on, run `02_aw9523_leds` and check the Serial Monitor at 115200 baud.
+  The green LEDs should light only during their named steps: Symbol (AW10),
+  Flash (AW11), Serial (AW12). With power off, check the stuck LED's wiring:
+  AW pin → 330Ω → LED long leg; LED short leg → GND.
 
 1. Press each color key and check the level on the LCD. Press blue to cycle `03.00`, `05.00`, `08.00`.
-2. Start Easy. Turn each pot and flip each toggle, and watch LCD row 2 follow them.
+2. Start Easy. The LCD should show a hex code like `Code:A5`. Decode it (see the
+   Serial Code manual) and flip the toggles in that order; the Serial module's green
+   LED lights. A flip out of order costs 10 seconds. (Once the dials are wired and
+   `dialsWired` is true, LCD row 2 should follow the pots and toggles instead.)
 3. Solve each module and check that its green LED lights. Victory shows a check mark on the matrix and "DEFUSED!" on the LCD.
 4. Reset. Make deliberate mistakes; each should take 10 seconds. Let the time run out to check the
    warning, `00.00`, and a large X on the matrix with "BOOM! Time's up" on the LCD. Then repeat on Medium and Hard.
 
 ## Software checks
 
-Uno build: **15,012 bytes flash (46%)**, **605 bytes global RAM (29%)**, no warnings from the sketch.
+Uno build: **14,756 bytes flash (45%)**, **611 bytes global RAM (29%)**, no warnings from the sketch.
 All six component-test sketches compile for Uno.
 The host tests drive the real `loop()` with fake hardware. They cover:
 - every symbol layout and Hard flash pattern
