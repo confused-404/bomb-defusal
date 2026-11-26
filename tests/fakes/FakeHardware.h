@@ -36,9 +36,12 @@ struct Printer {
 };
 struct WireStub { void begin() {} };
 static WireStub Wire;
+const uint8_t AW9523_LED_MODE = 0x99;
 struct Adafruit_AW9523 {
+  uint8_t modes[16] = {}, levels[16] = {};
+  void analogWrite(uint8_t pin, uint8_t level) { levels[pin] = level; }
   bool begin(uint8_t) { return true; }
-  void pinMode(uint8_t, uint8_t) {}
+  void pinMode(uint8_t pin, uint8_t mode) { modes[pin] = mode; }
   uint16_t inputGPIO() { return fakeInputs; }
   void digitalWrite(uint8_t pin, bool value) {
     if (value) fakeOutputs |= (uint16_t)1 << pin;
@@ -57,7 +60,8 @@ struct LedControl {
 struct Adafruit_LiquidCrystal : Printer {
   Adafruit_LiquidCrystal(int) {}
   void begin(int, int) {}
-  void setBacklight(int) {}
+  bool backlight = false;
+  void setBacklight(int on) { backlight = on; }
   std::string rows[2] = {std::string(16, ' '), std::string(16, ' ')};
   int col = 0, row = 0;
   void clear() {

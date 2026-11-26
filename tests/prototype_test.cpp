@@ -132,7 +132,18 @@ void gameTests() {
   assert(!dialsWired && dials[0] == 0);  // Ignore the unwired pin even at boot.
   assert(state == SETUP && lastShownSeconds == 300);
   assert(TIMSK2 == _BV(OCIE2A) && OCR2A == 249);  // 500 Hz display refresh.
-  assert(matrix.awake && matrix.rows[0] == 0x80);  // Setup shows the top-left marker.
+  const uint8_t firstWave[] = {0, 0x60, 0x10, 0x80, 0x08, 0x01, 0x06, 0};
+  const uint8_t nextWave[] = {0, 0x60, 0x80, 0x10, 0x01, 0x08, 0x06, 0};
+  assert(matrix.awake && memcmp(matrix.rows, firstWave, 8) == 0);
+  assert(io.modes[RGB_FIRST] == AW9523_LED_MODE);
+  assert(io.levels[RGB_FIRST] == 48 && io.levels[RGB_FIRST + 1] == 0);
+  advance(85);
+  assert(io.levels[RGB_FIRST] == 45 && io.levels[RGB_FIRST + 1] == 3);
+  assert(memcmp(matrix.rows, firstWave, 8) == 0);
+  advance(5);
+  assert(memcmp(matrix.rows, nextWave, 8) == 0);
+  advance(15 * 90);
+  assert(memcmp(matrix.rows, firstWave, 8) == 0);
   assert((fakeOutputs & RGB_BITS) == RGB_BITS && (fakeOutputs & STATUS_BITS) == 0);
   assert(lcd.rows[0] == "Easy / 5 min    ");
   assert(lcd.rows[1] == "Red:Lvl Blue:Min");
@@ -147,8 +158,13 @@ void gameTests() {
   assert(state == SETUP);
   setInput(START, true); advance(100);
   assert(state == PLAYING);
+  for (uint8_t i = 0; i < 3; ++i) assert(io.modes[RGB_FIRST + i] == OUTPUT && io.levels[RGB_FIRST + i] == 0);
+  uint8_t puzzleFrame[8];
+  memcpy(puzzleFrame, matrix.rows, 8);
+  advance(500);
+  assert(memcmp(matrix.rows, puzzleFrame, 8) == 0);
   press(RESET); advance(100);
-  assert(state == SETUP);
+  assert(state == SETUP && memcmp(matrix.rows, nextWave, 8) == 0);
   setInput(START, false); advance(50);
 
   for (uint8_t level = 0; level < 3; ++level) {
@@ -157,6 +173,12 @@ void gameTests() {
       assert(lastShownSeconds == ROUND_SECONDS[timer]);
       assert(!serialSettingsMatch());  // Never starts solved.
       uint8_t wrong = (symbolAnswer[0] + 1) % 4;
+      if (level == 1) {
+        uint8_t colors = 0;
+        for (uint8_t key : symbolAnswer) colors |= 1 << key;
+        if (colors == 15) { wrong = symbolAnswer[0]; press(wrong); }
+        else { for (wrong = 0; colors & (1 << wrong); ++wrong) {} }
+      }
       uint32_t before = remainingMs;
       press(wrong);
       assert(before - remainingMs == 10100 && symbolPosition == 0);
@@ -240,7 +262,18 @@ void gameTests() {
   press((symbolAnswer[0] + 1) % 4);
   assert(state == LOST && remainingMs == 0 && fakeDigital[WARNING_PIN] == HIGH);
   for (uint8_t y = 0; y < 8; ++y) assert(matrix.rows[y] == ((0x80 >> y) | (1 << y)));  // Big X.
-  press(RESET); assert(state == SETUP && fakeDigital[WARNING_PIN] == LOW);
+  assert(matrix.awake && lcd.backlight && lcd.rows[0] == "BOOM! Time's up ");
+  advance(250);
+  assert(!matrix.awake && !lcd.backlight);
+  press(RESET);
+  assert(state == SETUP && fakeDigital[WARNING_PIN] == LOW && matrix.awake && lcd.backlight);
+  prepare();
+  remainingMs = 5;
+  advance(5);
+  advance(1500);
+  assert(state == LOST && matrix.awake && lcd.backlight);
+  advance(750);
+  assert(matrix.awake && lcd.backlight);
   prepare();
   solved[0] = solved[1] = true;
   setSerial(); assert(serialMatching);

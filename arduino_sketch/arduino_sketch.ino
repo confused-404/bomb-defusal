@@ -201,10 +201,33 @@ bool serialSettingsMatch() {
 }
 
 // ---- Screens and game state ----
-void showSetup() {
+const uint16_t IDLE_FRAME_MS = 90;
+uint32_t idleFrameAt = 0, idleColorAt = 0;
+uint8_t idleColorStep = 0;
+uint8_t idlePhase = 0;
+uint32_t lossStartedAt = 0;
+uint8_t lossPhase = 0;
+
+void drawIdleWave() {
+  const uint8_t waveRows[] = {3, 2, 1, 1, 1, 1, 2, 3, 4, 5, 6, 6, 6, 6, 5, 4};
   clearFrame();
-  frame[0] = 1;  // Top-left LED: orientation marker.
+  for (uint8_t x = 0; x < 8; ++x) {
+    uint8_t y = waveRows[(2 * x + idlePhase) & 15];
+    frame[y] |= 1 << x;
+  }
   showFrame();
+}
+
+// Use the expander's current control for a fade without software PWM.
+void drawIdleColor() {
+  uint8_t channel = idleColorStep / 48, mix = idleColorStep % 48;
+  for (uint8_t i = 0; i < 3; ++i) {
+    uint8_t brightness = i == channel ? 48 - mix : (i == (channel + 1) % 3 ? mix : 0);
+    io.analogWrite(RGB_FIRST + i, brightness);
+  }
+}
+
+void showSetup() {
   lcd.clear();
   if (difficulty == 0) lcd.print(F("Easy"));
   else if (difficulty == 1) lcd.print(F("Medium"));
@@ -224,15 +247,28 @@ void resetGame() {
     io.digitalWrite(STATUS_FIRST + i, LOW);
   }
   digitalWrite(WARNING_PIN, LOW);
-  rgbOff();
+  lcd.setBacklight(HIGH);
+  for (uint8_t i = 0; i < 3; ++i) {
+    io.analogWrite(RGB_FIRST + i, 0);
+    io.pinMode(RGB_FIRST + i, AW9523_LED_MODE);
+  }
+  idleColorStep = 0;
+  idleColorAt = millis();
+  drawIdleColor();
   tapCount = 0;
   symbolPosition = symbolUsed = 0;
   serialMatching = false;
+  idlePhase = 0;
+  idleFrameAt = millis();
+  for (uint8_t i = 0; i < MATRIX_COUNT; ++i) matrix.shutdown(i, false);
+  drawIdleWave();
   showSetup();  // Keeps the chosen difficulty and timer.
 }
 
 void finishGame(bool win) {
   state = win ? WON : LOST;
+  lossStartedAt = millis();
+  lossPhase = 0;
   rgbOff();
   digitalWrite(WARNING_PIN, !win);
   for (uint8_t y = 0; y < 8; ++y) frame[y] = win ? CHECK_MARK[y] : (1 << y) | (0x80 >> y);  // Check or big X.
@@ -242,6 +278,16 @@ void finishGame(bool win) {
   else lcd.print(F("BOOM! Time's up"));
   lcd.setCursor(0, 1);
   lcd.print(F("RESET to retry"));
+}
+
+void updateLossFlash(uint32_t now) {
+  uint32_t elapsedPhase = (now - lossStartedAt) / 250;
+  uint8_t phase = elapsedPhase < 6 ? elapsedPhase : 6;
+  if (phase == lossPhase) return;
+  lossPhase = phase;
+  bool visible = !(phase & 1);
+  for (uint8_t i = 0; i < MATRIX_COUNT; ++i) matrix.shutdown(i, !visible);
+  lcd.setBacklight(visible);
 }
 
 // Called before accepting actions, so an action at zero cannot win.
@@ -277,6 +323,11 @@ void completeModule(uint8_t module) {
 }
 
 void startGame() {
+  for (uint8_t i = 0; i < 3; ++i) {
+    io.analogWrite(RGB_FIRST + i, 0);
+    io.digitalWrite(RGB_FIRST + i, HIGH);
+    io.pinMode(RGB_FIRST + i, OUTPUT);
+  }
   randomSeed(micros());  // Human press timing makes each round different.
   for (uint8_t i = 0; i < 4; ++i) symbols[i] = random(4);
   symbolLength = makeSymbolAnswer(difficulty, symbols, symbolAnswer);
@@ -480,8 +531,21 @@ void loop() {
     if (pressed[3]) { timerChoice = (timerChoice + 1) % 3; changed = true; }
     if (changed) showSetup();
     if (pressed[START]) startGame();
+    else {
+      if (now - idleColorAt >= 25) {
+        idleColorAt = now;
+        idleColorStep = (idleColorStep + 1) % 144;
+        drawIdleColor();
+      }
+      if (now - idleFrameAt >= IDLE_FRAME_MS) {
+        idleFrameAt = now;
+        idlePhase = (idlePhase + 1) & 15;
+        drawIdleWave();
+      }
+    }
     return;  // Setup presses never count as puzzle answers.
   }
+  if (state == LOST) updateLossFlash(millis());
   if (state != PLAYING) return;
 
   // Symbol Sequence

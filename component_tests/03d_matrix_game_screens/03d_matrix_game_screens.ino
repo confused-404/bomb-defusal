@@ -1,6 +1,6 @@
 #include <LedControl.h>
 
-// Shows every screen the game draws on the matrix, using the game's own drawing code.
+// Previews the puzzle and result shapes, plus a static orientation marker.
 const uint8_t MATRIX_DIN = 11, MATRIX_CLK = 13, MATRIX_CS = 10;
 const uint8_t MATRIX_ROTATION = 0;  // Keep in sync with arduino_sketch.ino.
 const bool MATRIX_MIRROR = false;

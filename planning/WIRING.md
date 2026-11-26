@@ -133,7 +133,7 @@ long leg. Connect its short leg to GND.
 ### Check it
 
 Run `03_max7219_matrix` from `component_tests/`. The pixel sweep should visit the full
-matrix. The game sketch uses the top-left corner as its orientation reference; if the
+matrix. Use `03c_matrix_coordinates` to check orientation. If the
 orientation is wrong, adjust `MATRIX_ROTATION` or `MATRIX_MIRROR`.
 Run `01_aw9523_inputs` to press each colored key and check that only its input changes.
 Run `02_aw9523_leds` to check the green status LED.
@@ -374,7 +374,7 @@ A new round always picks a code that doesn't match where the controls are alread
 
 After the individual tests pass, reconnect any modules you temporarily disconnected.
 Turn off the battery module, unplug USB, then power up from the battery. The LCD should
-show "Easy / 5 min", the countdown `05.00`, and the matrix's top-left LED.
+show "Easy / 5 min", the countdown `05.00`, an animated wave on the matrix, and a slow RGB color fade.
 
 - If the matrix stays dark, check VCC, GND, DIN (D11), CLK (D13), and CS (D10), and make sure you used the IN end.
 - If the LCD says "AW9523 missing", check the QT cable's wiring to A4/A5, 5V, and GND.
@@ -391,11 +391,11 @@ show "Easy / 5 min", the countdown `05.00`, and the matrix's top-left LED.
    `dialsWired` is true, LCD row 2 should follow the pots and toggles instead.)
 3. Solve each module and check that its green LED lights. Victory shows a check mark on the matrix and "DEFUSED!" on the LCD.
 4. Reset. Make deliberate mistakes; each should take 10 seconds. Let the time run out to check the
-   warning, `00.00`, and a large X on the matrix with "BOOM! Time's up" on the LCD. Then repeat on Medium and Hard.
+   warning and `00.00`. The red X and LCD backlight flash together, then stay on with "BOOM! Time's up" and "RESET to retry". Then repeat on Medium and Hard.
 
 ## Software checks
 
-Uno build: **15,114 bytes flash (46%)**, **619 bytes global RAM (30%)**, no warnings from the sketch.
+Uno build: **15,872 bytes flash (49%)**, **650 bytes global RAM (31%)**, no warnings from the sketch.
 All six component-test sketches compile for Uno.
 The host tests drive the real `loop()` with fake hardware. They cover:
 - every symbol layout and Hard flash pattern
